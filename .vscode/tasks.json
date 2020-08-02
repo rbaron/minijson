@@ -43,7 +43,10 @@
     },
     {
       "type": "shell",
-      "group": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true,
+      },
       "label": "make",
       "command": "make -j 8",
       "presentation": {
@@ -53,6 +56,24 @@
       },
       "dependsOn": [
         "cmake"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "type": "shell",
+      "group": {
+        "kind": "test",
+        "isDefault": true,
+      },
+      "label": "run",
+      "command": "./minijson",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "dependsOn": [
+        // "make"
       ],
       "problemMatcher": []
     }
