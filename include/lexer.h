@@ -10,6 +10,7 @@
 namespace minijson {
 
 enum class TokenType {
+  kUnknown,
   kLCurlyBracket,
   kRCurlyBracket,
   kLSquareBracket,
@@ -26,6 +27,10 @@ struct Token {
   std::string text;
 };
 
+bool operator==(const Token& lhs, const Token& rhs) {
+  return lhs.type == rhs.type && lhs.text == rhs.text;
+}
+
 namespace {
 
 Token TokenizeString(std::string::const_iterator *it) {
@@ -35,6 +40,7 @@ Token TokenizeString(std::string::const_iterator *it) {
   return Token{TokenType::kStr, std::string(start+1, (*it)++)};
 }
 
+// TODO: allow a single '.'
 Token TokenizeNumber(std::string::const_iterator *it) {
   auto start = *it;
   while (isdigit(*(++*it)));

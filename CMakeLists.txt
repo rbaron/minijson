@@ -11,3 +11,5 @@ set(SRC src/main.cc
 )
 
 add_executable(${PROJECT_NAME} ${SRC})
+
+add_subdirectory(tests)
