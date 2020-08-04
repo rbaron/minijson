@@ -8,7 +8,7 @@
 
 #include "minijson.h"
 
-namespace minijson {
+namespace minijson::internal {
 namespace {
 
 TEST(Tokenizer, TokenizeSmokeTest) {
@@ -27,7 +27,7 @@ TEST(Tokenizer, TokenizeSmokeTest) {
       }
     }
   )";
-  auto tokens = minijson::Tokenize(json);
+  auto tokens = Tokenize(json);
   ASSERT_THAT(tokens, ::testing::ElementsAre(
     Token{TokenType::kLCurlyBracket, "{"},
     Token{TokenType::kStr, "hello"},

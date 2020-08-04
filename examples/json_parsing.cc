@@ -1,9 +1,3 @@
-# minijson
-Tiny header-only C++ JSON parsing library.
-
-# Example
-From `examples/json_parsing.cc`:
-```cpp
 #include <iostream>
 #include <string>
 
@@ -49,16 +43,3 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-```
-
-# Tests
-## Unit tests
-```bash
-# Build
-$ cd build/
-$ cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Debug ..
-$ cmake --build .
-# Run
-$ ./tests/parser_tests
-$ ./tests/lexer_tests
-```

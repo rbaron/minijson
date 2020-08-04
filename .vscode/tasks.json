@@ -1,31 +1,5 @@
 {
 	"version": "2.0.0",
-	// "tasks": [
-  //   {
-  //     "type": "shell",
-  //     "label": "C/C++: clang++ build active file",
-  //     "command": "/usr/bin/clang++",
-  //     "args": [
-  //       "-std=c++17",
-  //       "-stdlib=libc++",
-  //       "-g",
-  //       "${file}",
-  //       "-o",
-  //       "${fileDirname}/${fileBasenameNoExtension}"
-  //     ],
-  //     "options": {
-  //       "cwd": "${workspaceFolder}"
-  //     },
-  //     "problemMatcher": [
-  //       "$gcc"
-  //     ],
-  //     "group": {
-  //       "kind": "build",
-  //       "isDefault": true
-  //     }
-  //   }
-  // ]
-  // "isShellCommand": true,
   "options": {
     "cwd": "${workspaceRoot}/build"
   },
@@ -34,7 +8,6 @@
       "label": "cmake",
       "command": "cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Debug ..",
       "type": "shell",
-      // "group": "build",
       "presentation": {
         "echo": true,
         "reveal": "always",
