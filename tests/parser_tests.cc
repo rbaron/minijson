@@ -31,6 +31,34 @@ TEST(Parser, ParseNumber) {
   ASSERT_DOUBLE_EQ(json["ok"].GetNum(), 123);
 }
 
+TEST(Parser, ParseBoolean) {
+  const std::string text = R"(
+    {
+      "true_key": true,
+      "false_key": false
+    }
+  )";
+  const auto tokens = Tokenize(text);
+  auto it = tokens.begin();
+  JSONNode json = ParseJSONNode(&it);
+  ASSERT_TRUE(json["true_key"].GetBool());
+  ASSERT_FALSE(json["false_key"].GetBool());
+}
+
+TEST(Parser, ParseNull) {
+  const std::string text = R"(
+    {
+      "null_key": null,
+      "str_key": "hello, world"
+    }
+  )";
+  const auto tokens = Tokenize(text);
+  auto it = tokens.begin();
+  JSONNode json = ParseJSONNode(&it);
+  ASSERT_TRUE(json["null_key"].IsNull());
+  ASSERT_FALSE(json["str_key"].IsNull());
+}
+
 TEST(Parser, ParseArray) {
   const std::string text = R"(
     {

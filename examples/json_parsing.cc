@@ -8,13 +8,15 @@ int main(int argc, char **argv) {
     {
       "str_key": "hello, world",
       "num_key": 123,
+      "null_key": null,
+      "true_key": true,
       "nested_obj_key": {
         "nested_arr_key": [
           "elem1",
           "elem2",
           {
             "inner_obj_key": "ok!"
-          }
+          },
         ]
       }
     }
@@ -28,6 +30,14 @@ int main(int argc, char **argv) {
 
   // Get numeric values (as `double`s)
   std::cout << "\"str_key\" contains: " << json["num_key"].GetNum()
+            << std::endl;
+
+  // Get boolean values
+  std::cout << "\"true_key\" contains: " << json["true_key"].GetBool()
+            << std::endl;
+
+  // Test for null values
+  std::cout << "is \"null_key\" null? " << json["null_key"].IsNull()
             << std::endl;
 
   // Index into arrays

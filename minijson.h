@@ -23,12 +23,11 @@ namespace minijson {
 namespace internal {
 
 enum class TokenType {
-  kUnknown,
   kLCurlyBracket,
   kRCurlyBracket,
   kLSquareBracket,
   kRSquareBracket,
-  kName, // true, false, null
+  kConstant, // true, false, null
   kStr,
   kComma,
   kColon,
@@ -66,7 +65,7 @@ Token TokenizeName(std::string::const_iterator *it) {
   auto start = *it;
   while (IsNameChar(*++*it))
     ;
-  return Token{TokenType::kName, std::string(start, *it)};
+  return Token{TokenType::kConstant, std::string(start, *it)};
 }
 
 std::optional<Token> TonekizeOne(std::string::const_iterator *it) {
@@ -103,11 +102,12 @@ using Arr = std::vector<JSONNode>;
 
 class JSONNode {
 public:
-  JSONNode() : type_(Type::kUndefined) {}
-  explicit JSONNode(Obj &&obj) : type_(Type::kObj), obj_(obj) {}
-  explicit JSONNode(Arr &&arr) : type_(Type::kArr), arr_(arr) {}
-  explicit JSONNode(const std::string &str) : type_(Type::kStr), str_(str) {}
+  JSONNode() : type_(Type::kNull) {}
+  explicit JSONNode(bool boolean) : type_(Type::kBoolean), bool_(boolean) {}
   explicit JSONNode(double number) : type_(Type::kNumber), number_(number) {}
+  explicit JSONNode(const std::string &str) : type_(Type::kStr), str_(str) {}
+  explicit JSONNode(Arr &&arr) : type_(Type::kArr), arr_(arr) {}
+  explicit JSONNode(Obj &&obj) : type_(Type::kObj), obj_(obj) {}
 
   JSONNode(const JSONNode &rhs) {
     type_ = rhs.type_;
@@ -120,6 +120,9 @@ public:
       new (&str_) std::string(rhs.str_);
     } else if (rhs.type_ == Type::kNumber) {
       number_ = rhs.number_;
+    } else if (rhs.type_ == Type::kBoolean) {
+      bool_ = rhs.bool_;
+    } else if (rhs.type_ == Type::kNull) {
     } else {
       throw std::runtime_error("Not copyable");
     }
@@ -128,10 +131,12 @@ public:
   // Copy-and-swap. Note that the argument is passed by value,
   // so we operate on a copy.
   JSONNode &operator=(JSONNode rhs) {
+    std::swap(type_, rhs.type_);
     std::swap(obj_, rhs.obj_);
     std::swap(str_, rhs.str_);
     std::swap(number_, rhs.number_);
     std::swap(type_, rhs.type_);
+    std::swap(bool_, rhs.bool_);
     return *this;
   }
 
@@ -153,6 +158,15 @@ public:
     return arr_[idx];
   }
 
+  bool IsNull() const {
+    return type_ == Type::kNull;
+  }
+
+  double GetBool() const {
+    ASSERT_TYPE(Type::kBoolean);
+    return bool_;
+  }
+
   double GetNum() const {
     ASSERT_TYPE(Type::kNumber);
     return number_;
@@ -167,11 +181,12 @@ private:
   // We implement the "tagged union" idiom from
   // "The C++ Programming Language 4th edition".
   enum class Type {
-    kUndefined,
+    kNull,
+    kBoolean,
     kNumber,
     kStr,
-    kObj,
     kArr,
+    kObj,
   };
   Type type_;
   // TODO: I think making this a named union might make
@@ -181,8 +196,22 @@ private:
     std::string str_;
     Obj obj_;
     Arr arr_;
+    bool bool_;
   };
 };
+
+JSONNode ParseJSONConstant(std::vector<Token>::const_iterator *it) {
+  const std::string& name = ((*it)++)->text;
+  if (name == "true") {
+    return JSONNode(true);
+  } else if (name == "false") {
+    return JSONNode(false);
+  } else if (name == "null") {
+    return JSONNode();
+  } else {
+    throw std::runtime_error("Unkown name: " + name);
+  }
+}
 
 JSONNode ParseJSONArr(std::vector<Token>::const_iterator *it) {
   Arr arr;
@@ -233,6 +262,8 @@ JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it) {
     return JSONNode((*it)++->text);
   case TokenType::kNumber:
     return JSONNode(std::stod((*it)++->text));
+  case TokenType::kConstant:
+    return ParseJSONConstant(it);
   case TokenType::kLCurlyBracket:
     return ParseJSONObj(it);
   case TokenType::kLSquareBracket:

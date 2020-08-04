@@ -40,7 +40,7 @@ TEST(Tokenizer, TokenizeSmokeTest) {
     Token{TokenType::kComma, ","},
     Token{TokenType::kStr, "bool_key"},
     Token{TokenType::kColon, ":"},
-    Token{TokenType::kName, "true"},
+    Token{TokenType::kConstant, "true"},
     Token{TokenType::kComma, ","},
     Token{TokenType::kStr, "list_key"},
     Token{TokenType::kColon, ":"},
