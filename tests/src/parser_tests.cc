@@ -2,8 +2,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "lexer.h"
-#include "parser.h"
+#include "minijson.h"
 
 namespace minijson {
 namespace {
@@ -62,7 +61,7 @@ TEST(Parser, ComplainAboutMissingComma) {
   )";
   const auto tokens = Tokenize(text);
   auto it = tokens.begin();
-  JSONNode json = ParseJSONNode(&it);
+  ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
 }
 
 } // namespace

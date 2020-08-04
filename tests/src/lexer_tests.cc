@@ -6,7 +6,7 @@
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 
-#include "lexer.h"
+#include "minijson.h"
 
 namespace minijson {
 namespace {

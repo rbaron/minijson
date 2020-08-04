@@ -1,12 +1,13 @@
-#ifndef _PARSER_H_
-#define _PARSER_H_
+#ifndef _MINIJSON_H_
+#define _MINIJSON_H_
 
+#include <cctype>
 #include <memory>
+#include <optional>
 #include <stdlib.h>
 #include <string>
 #include <unordered_map>
-
-#include "lexer.h"
+#include <vector>
 
 #define ASSERT_CHAR_AND_MOVE(it, char) \
   if (((*it)++)->text != char) { \
@@ -20,12 +21,98 @@
 
 namespace minijson {
 
-class JSONNode;
+enum class TokenType {
+  kUnknown,
+  kLCurlyBracket,
+  kRCurlyBracket,
+  kLSquareBracket,
+  kRSquareBracket,
+  kName, // true, false, null
+  kStr,
+  kComma,
+  kColon,
+  kNumber,
+};
+
+struct Token {
+  TokenType type;
+  std::string text;
+};
+
+bool operator==(const Token& lhs, const Token& rhs) {
+  return lhs.type == rhs.type && lhs.text == rhs.text;
+}
 
 namespace {
-  using Obj = std::unordered_map<std::string, JSONNode>;
-  using Arr = std::vector<JSONNode>;
+
+Token TokenizeString(std::string::const_iterator *it) {
+  // TODO: handle escaped double quotes
+  auto start = *it;
+  while (*(++*it) != '"');
+  return Token{TokenType::kStr, std::string(start+1, (*it)++)};
+}
+
+// TODO: allow a single '.'
+Token TokenizeNumber(std::string::const_iterator *it) {
+  auto start = *it;
+  while (isdigit(*(++*it)));
+  return Token{TokenType::kNumber, std::string(start, *it)};
+}
+
+bool IsNameChar(char c) {
+  return isalnum(c) || c == '_' || c == '-';
+}
+
+Token TokenizeName(std::string::const_iterator *it) {
+  auto start = *it;
+  while (IsNameChar(*++*it));
+  return Token{TokenType::kName, std::string(start, *it)};
+}
+
+std::optional<Token> TonekizeOne(std::string::const_iterator *it) {
+  if (**it == '{') {
+    return Token{TokenType::kLCurlyBracket, std::string(*it, ++*it)};
+  } else if (**it == '}') {
+    return Token{TokenType::kRCurlyBracket, std::string(*it, ++*it)};
+  } else if (**it == '[') {
+    return Token{TokenType::kLSquareBracket, std::string(*it, ++*it)};
+  } else if (**it == ']') {
+    return Token{TokenType::kRSquareBracket, std::string(*it, ++*it)};
+  } else if (**it == ':') {
+    return Token{TokenType::kColon, std::string(*it, ++*it)};
+  } else if (**it == ',') {
+    return Token{TokenType::kComma, std::string(*it, ++*it)};
+  } else if (**it == '"') {
+    return TokenizeString(it);
+  } else if (isdigit(**it)) {
+    return TokenizeNumber(it);
+  } else if (IsNameChar(**it)) {
+    return TokenizeName(it);
+  // Whitespaces, hopefully
+  } else {
+    ++*it;
+    return std::nullopt;
+  }
+}
+
 }  // namespace
+
+std::vector<Token> Tokenize(const std::string& input) {
+  std::vector<Token> tokens;
+  for (auto it = input.begin(); it != input.end(); ) {
+    std::optional<Token> token = TonekizeOne(&it);
+    if (token.has_value()) {
+      tokens.push_back(token.value());
+    }
+  }
+  return tokens;
+}
+
+class JSONNode;
+JSONNode ParseJSONNode(std::vector<Token>::const_iterator* it);
+
+using Obj = std::unordered_map<std::string, JSONNode>;
+using Arr = std::vector<JSONNode>;
 
 class JSONNode {
  public:
@@ -97,8 +184,6 @@ class JSONNode {
   };
 };
 
-JSONNode ParseJSONNode(std::vector<Token>::const_iterator* it);
-
 JSONNode ParseJSONObj(std::vector<Token>::const_iterator* it) {
   Obj obj;
   ASSERT_CHAR_AND_MOVE(it, "{");
@@ -108,6 +193,8 @@ JSONNode ParseJSONObj(std::vector<Token>::const_iterator* it) {
     obj.emplace(key, ParseJSONNode(it));
     if ((*it)->type == TokenType::kComma) {
       ++*it;
+    } else if ((*it)->type != TokenType::kRCurlyBracket) {
+      throw std::runtime_error("Expected }");
     }
   }
   ASSERT_CHAR_AND_MOVE(it, "}");
@@ -125,4 +212,4 @@ JSONNode ParseJSONNode(std::vector<Token>::const_iterator* it) {
 
 }  // namespace minijson
 
-#endif  // _PARSER_H_
+#endif  // _MINIJSON_H_
