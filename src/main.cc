@@ -28,12 +28,12 @@ int main(int argc, char **argv) {
   //   std::cout << t.text << std::endl;
   // }
 
-  const std::vector<Token> tokens{
-    {TokenType::kStr, "I am a string"}
-  };
+  // const std::vector<Token> tokens{
+  //   {TokenType::kStr, "I am a string"}
+  // };
 
-  auto it = tokens.begin();
-  std::unique_ptr<JSONNode> parsed = ParseJSONNode(&it);
-  std::cout << parsed->Repr() << std::endl;
+  // auto it = tokens.begin();
+  // std::unique_ptr<JSONNode> parsed = ParseJSONNode(&it);
+  // std::cout << parsed->Repr() << std::endl;
   return 0;
 }
