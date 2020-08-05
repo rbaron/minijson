@@ -1,3 +1,5 @@
+![example workflow name](https://github.com/rbaron/minijson/workflows/Tests/badge.svg)
+
 # minijson
 Tiny header-only C++ JSON parsing library. Work in progress.
 
