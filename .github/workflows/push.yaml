@@ -1,0 +1,13 @@
+name: Tests
+on: [push]
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Lint
+        uses: ./.github/actions/lint
+      - name: Unit Tests
+        uses: ./.github/actions/unittests

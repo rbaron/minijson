@@ -94,35 +94,42 @@ std::optional<Token> TonekizeOne(std::string::const_iterator *it) {
   }
 }
 
-class JSONNode;
-JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it);
-
-using Obj = std::unordered_map<std::string, JSONNode>;
-using Arr = std::vector<JSONNode>;
-
 class JSONNode {
 public:
+  using Obj = std::unordered_map<std::string, JSONNode>;
+  using Arr = std::vector<JSONNode>;
+
   JSONNode() : type_(Type::kNull) {}
   explicit JSONNode(bool boolean) : type_(Type::kBoolean), bool_(boolean) {}
   explicit JSONNode(double number) : type_(Type::kNumber), number_(number) {}
   explicit JSONNode(const std::string &str) : type_(Type::kStr), str_(str) {}
-  explicit JSONNode(Arr &&arr) : type_(Type::kArr), arr_(arr) {}
-  explicit JSONNode(Obj &&obj) : type_(Type::kObj), obj_(obj) {}
+  explicit JSONNode(const char *str) : type_(Type::kStr), str_(str) {}
+  explicit JSONNode(std::unique_ptr<Arr> arr)
+      : type_(Type::kArr), arr_(std::move(arr)) {}
+  explicit JSONNode(std::unique_ptr<Obj> obj)
+      : type_(Type::kObj), obj_(std::move(obj)) {}
 
+  // We need to be careful when initializing the union. Some members
+  // (arr_, obj_), are unique_ptrs, which means they will try and access
+  // their pointee for destruction when re-assigned. In these cases,
+  // calling unique_ptr_member.release() seems to work.
+  // Also note we're doing deep copies in this copy constructor. This will be
+  // remediated when we introduce move semantics.
   JSONNode(const JSONNode &rhs) {
     type_ = rhs.type_;
-    if (rhs.type_ == Type::kObj) {
-      // Placement new!
-      new (&obj_) Obj(rhs.obj_);
-    } else if (rhs.type_ == Type::kArr) {
-      new (&arr_) Arr(rhs.arr_);
-    } else if (rhs.type_ == Type::kStr) {
-      new (&str_) std::string(rhs.str_);
-    } else if (rhs.type_ == Type::kNumber) {
-      number_ = rhs.number_;
+    if (rhs.type_ == Type::kNull) {
     } else if (rhs.type_ == Type::kBoolean) {
       bool_ = rhs.bool_;
-    } else if (rhs.type_ == Type::kNull) {
+    } else if (rhs.type_ == Type::kNumber) {
+      number_ = rhs.number_;
+    } else if (rhs.type_ == Type::kStr) {
+      new (&str_) std::string(rhs.str_);
+    } else if (rhs.type_ == Type::kArr) {
+      arr_.release();
+      arr_ = std::make_unique<Arr>(*(rhs.arr_));
+    } else if (rhs.type_ == Type::kObj) {
+      obj_.release();
+      obj_ = std::make_unique<Obj>(*(rhs.obj_));
     } else {
       throw std::runtime_error("Not copyable");
     }
@@ -132,11 +139,20 @@ public:
   // so we operate on a copy.
   JSONNode &operator=(JSONNode rhs) {
     std::swap(type_, rhs.type_);
-    std::swap(obj_, rhs.obj_);
-    std::swap(str_, rhs.str_);
-    std::swap(number_, rhs.number_);
-    std::swap(type_, rhs.type_);
-    std::swap(bool_, rhs.bool_);
+    if (type_ == Type::kNull) {
+    } else if (type_ == Type::kBoolean) {
+      std::swap(bool_, rhs.bool_);
+    } else if (type_ == Type::kNumber) {
+      std::swap(number_, rhs.number_);
+    } else if (type_ == Type::kStr) {
+      std::swap(str_, rhs.str_);
+    } else if (type_ == Type::kArr) {
+      std::swap(arr_, rhs.arr_);
+    } else if (type_ == Type::kObj) {
+      std::swap(obj_, rhs.obj_);
+    } else {
+      throw std::runtime_error("Not assignable");
+    }
     return *this;
   }
 
@@ -144,23 +160,23 @@ public:
     if (type_ == Type::kStr) {
       str_.~basic_string();
     } else if (type_ == Type::kObj) {
-      obj_.~unordered_map();
+      obj_.~unique_ptr();
+    } else if (type_ == Type::kArr) {
+      arr_.~unique_ptr();
     }
   };
 
   JSONNode &operator[](const std::string &key) {
     ASSERT_TYPE(Type::kObj);
-    return obj_[key];
+    return (*obj_)[key];
   }
 
   JSONNode &operator[](const size_t idx) {
     ASSERT_TYPE(Type::kArr);
-    return arr_[idx];
+    return (*arr_)[idx];
   }
 
-  bool IsNull() const {
-    return type_ == Type::kNull;
-  }
+  bool IsNull() const { return type_ == Type::kNull; }
 
   double GetBool() const {
     ASSERT_TYPE(Type::kBoolean);
@@ -191,17 +207,23 @@ private:
   Type type_;
   // TODO: I think making this a named union might make
   // the Big Five^{TM} cleaner, but not sure about the ctor.
+  // TODO: make these members unique_ptrs, otherwise some compilers
+  // complain that their size is not known (as they themselves depend on the
+  // class of which they are part of...)
   union {
+    bool bool_;
     double number_;
     std::string str_;
-    Obj obj_;
-    Arr arr_;
-    bool bool_;
+    // Obj obj_;
+    std::unique_ptr<Obj> obj_;
+    std::unique_ptr<Arr> arr_;
   };
 };
 
+JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it);
+
 JSONNode ParseJSONConstant(std::vector<Token>::const_iterator *it) {
-  const std::string& name = ((*it)++)->text;
+  const std::string &name = ((*it)++)->text;
   if (name == "true") {
     return JSONNode(true);
   } else if (name == "false") {
@@ -214,10 +236,10 @@ JSONNode ParseJSONConstant(std::vector<Token>::const_iterator *it) {
 }
 
 JSONNode ParseJSONArr(std::vector<Token>::const_iterator *it) {
-  Arr arr;
+  auto arr = std::make_unique<JSONNode::Arr>();
   ASSERT_CHAR_AND_MOVE(it, "[");
   while ((*it)->type != TokenType::kRSquareBracket) {
-    arr.emplace_back(ParseJSONNode(it));
+    arr->emplace_back(ParseJSONNode(it));
     if ((*it)->type == TokenType::kComma) {
       ++*it;
     } else if ((*it)->type != TokenType::kRSquareBracket) {
@@ -229,12 +251,12 @@ JSONNode ParseJSONArr(std::vector<Token>::const_iterator *it) {
 }
 
 JSONNode ParseJSONObj(std::vector<Token>::const_iterator *it) {
-  Obj obj;
+  auto obj = std::make_unique<JSONNode::Obj>();
   ASSERT_CHAR_AND_MOVE(it, "{");
   while ((*it)->type != TokenType::kRCurlyBracket) {
     std::string key = ((*it)++)->text;
     ASSERT_CHAR_AND_MOVE(it, ":");
-    obj.emplace(key, ParseJSONNode(it));
+    obj->emplace(key, ParseJSONNode(it));
     if ((*it)->type == TokenType::kComma) {
       ++*it;
     } else if ((*it)->type != TokenType::kRCurlyBracket) {
@@ -277,8 +299,8 @@ JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it) {
 
 using JSONNode = internal::JSONNode;
 
-JSONNode Parse(const std::string& text) {
-  const auto tokens =  internal::Tokenize(text);
+JSONNode Parse(const std::string &text) {
+  const auto tokens = internal::Tokenize(text);
   auto it = tokens.begin();
   return internal::ParseJSONNode(&it);
 }

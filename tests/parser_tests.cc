@@ -121,4 +121,4 @@ TEST(Parser, ThrowOnGetWrongType) {
 }
 
 } // namespace
-} // namespace minijson
+} // namespace minijson::internal

@@ -41,3 +41,7 @@ add_test(NAME tokenizer_tests COMMAND tokenizer_tests)
 add_executable(parser_tests parser_tests.cc)
 target_link_libraries(parser_tests gtest_main gmock_main)
 add_test(NAME parser_tests COMMAND parser_tests)
+
+add_executable(jsonnode_tests jsonnode_tests.cc)
+target_link_libraries(jsonnode_tests gtest_main gmock_main)
+add_test(NAME jsonnode_tests COMMAND jsonnode_tests)
