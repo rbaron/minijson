@@ -3,4 +3,3 @@ description: 'Runs clang-format'
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  entrypoint: ['make',  'lint']

@@ -5,4 +5,6 @@ ENV CXX=/usr/bin/clang++
 ENV CC=/usr/bin/clang
 WORKDIR /app
 ADD . .
+ADD entrypoint.sh /entrypoint.sh
 RUN rm -rf build/*
+ENTRYPOINT ["/entrypoint.sh"]

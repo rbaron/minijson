@@ -3,4 +3,3 @@ description: 'Runs unit tests'
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  entrypoint: ['make',  'unittests']
