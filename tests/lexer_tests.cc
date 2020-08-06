@@ -52,5 +52,27 @@ TEST(Tokenizer, TokenizeSmokeTest) {
           Token{TokenType::kRCurlyBracket, "}"}));
 }
 
+TEST(Tokenizer, UnderstandEscapeSequences) {
+  const std::string json = R"(
+    "It goes:\n\"Muchos años después, frente al pelotón de fusilamiento (...)\""
+  )";
+  auto tokens = Tokenize(json);
+  ASSERT_THAT(tokens,
+              ::testing::ElementsAre(Token{
+                  TokenType::kStr, "It goes:\n\"Muchos años después, frente al "
+                                   "pelotón de fusilamiento (...)\""}));
+}
+
+TEST(Tokenizer, IntegerWorks) {
+  auto tokens = Tokenize("123");
+  ASSERT_THAT(tokens, ::testing::ElementsAre(Token{TokenType::kNumber, "123"}));
+}
+
+TEST(Tokenizer, FloatingPointWorks) {
+  auto tokens = Tokenize("123.123");
+  ASSERT_THAT(tokens,
+              ::testing::ElementsAre(Token{TokenType::kNumber, "123.123"}));
+}
+
 } // namespace
 } // namespace minijson::internal

@@ -44,17 +44,48 @@ bool operator==(const Token &lhs, const Token &rhs) {
 }
 
 Token TokenizeString(std::string::const_iterator *it) {
-  // TODO: handle escaped double quotes
-  auto start = *it;
-  while (*(++*it) != '"')
-    ;
-  return Token{TokenType::kStr, std::string(start + 1, (*it)++)};
+  // TODO: out.reserve.
+  // TODO: handle unicode code points.
+  std::string out;
+  while (*(++*it) != '"') {
+    if (**it == '\\') {
+      switch (*++*it) {
+      case 'b':
+        out += '\b';
+        break;
+      case 'f':
+        out += '\f';
+        break;
+      case 'n':
+        out += '\n';
+        break;
+      case 'r':
+        out += '\r';
+        break;
+      case 't':
+        out += '\t';
+        break;
+      case '"':
+        out += '\"';
+        break;
+      case '\\':
+        out += '\\';
+        break;
+      default:
+        throw std::runtime_error("Unrecognized escape sequence: \\" +
+                                 std::to_string(**it));
+      }
+    } else {
+      out += **it;
+    }
+  }
+  ++*it;
+  return Token{TokenType::kStr, out};
 }
 
-// TODO: allow a single '.'
 Token TokenizeNumber(std::string::const_iterator *it) {
   auto start = *it;
-  while (isdigit(*(++*it)))
+  while (isdigit(*(++*it)) || **it == '.')
     ;
   return Token{TokenType::kNumber, std::string(start, *it)};
 }
@@ -127,7 +158,7 @@ public:
     } else if (rhs.type_ == Type::kObj) {
       new (&obj_) std::unique_ptr(std::make_unique<Obj>(*rhs.obj_));
     } else {
-      throw std::runtime_error("Not copyable");
+      throw std::runtime_error("Not copy constructible");
     }
   }
 
@@ -147,7 +178,7 @@ public:
     } else if (type_ == Type::kObj) {
       std::swap(obj_, rhs.obj_);
     } else {
-      throw std::runtime_error("Not assignable");
+      throw std::runtime_error("Not copy assignable");
     }
     return *this;
   }
@@ -201,22 +232,26 @@ private:
     kObj,
   };
   Type type_;
-  // TODO: I think making this a named union might make
-  // the Big Five^{TM} cleaner, but not sure about the ctor.
-  // TODO: make these members unique_ptrs, otherwise some compilers
-  // complain that their size is not known (as they themselves depend on the
-  // class of which they are part of...)
   union {
     bool bool_;
     double number_;
     std::string str_;
-    // Obj obj_;
     std::unique_ptr<Obj> obj_;
     std::unique_ptr<Arr> arr_;
   };
 };
 
 JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it);
+
+JSONNode ParseJSONNumber(std::vector<Token>::const_iterator *it) {
+  const std::string &text = ((*it)++)->text;
+  std::string::size_type sz;
+  double number = std::stod(text, &sz);
+  if (sz != text.size()) {
+    throw std::runtime_error("Invalid number: " + text);
+  }
+  return JSONNode(number);
+}
 
 JSONNode ParseJSONConstant(std::vector<Token>::const_iterator *it) {
   const std::string &name = ((*it)++)->text;
@@ -279,7 +314,7 @@ JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it) {
   case TokenType::kStr:
     return JSONNode((*it)++->text);
   case TokenType::kNumber:
-    return JSONNode(std::stod((*it)++->text));
+    return ParseJSONNumber(it);
   case TokenType::kConstant:
     return ParseJSONConstant(it);
   case TokenType::kLCurlyBracket:
