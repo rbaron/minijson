@@ -109,12 +109,10 @@ public:
   explicit JSONNode(std::unique_ptr<Obj> obj)
       : type_(Type::kObj), obj_(std::move(obj)) {}
 
-  // We need to be careful when initializing the union. Some members
-  // (arr_, obj_), are unique_ptrs, which means they will try and access
-  // their pointee for destruction when re-assigned. In these cases,
-  // calling unique_ptr_member.release() seems to work.
-  // Also note we're doing deep copies in this copy constructor. This will be
-  // remediated when we introduce move semantics.
+  // We need to be careful when initializing the union. Since all members begin
+  // at the the same address in memory, we need to make sure the correct one is
+  // initialized. This is done with the "placement new" operator for non-builtin
+  // types.
   JSONNode(const JSONNode &rhs) {
     type_ = rhs.type_;
     if (rhs.type_ == Type::kNull) {
@@ -125,18 +123,16 @@ public:
     } else if (rhs.type_ == Type::kStr) {
       new (&str_) std::string(rhs.str_);
     } else if (rhs.type_ == Type::kArr) {
-      arr_.release();
-      arr_ = std::make_unique<Arr>(*(rhs.arr_));
+      new (&arr_) std::unique_ptr(std::make_unique<Arr>(*rhs.arr_));
     } else if (rhs.type_ == Type::kObj) {
-      obj_.release();
-      obj_ = std::make_unique<Obj>(*(rhs.obj_));
+      new (&obj_) std::unique_ptr(std::make_unique<Obj>(*rhs.obj_));
     } else {
       throw std::runtime_error("Not copyable");
     }
   }
 
-  // Copy-and-swap. Note that the argument is passed by value,
-  // so we operate on a copy.
+  // Copy-and-swap. Note that the argument is passed by value, so we operate on
+  // a copy.
   JSONNode &operator=(JSONNode rhs) {
     std::swap(type_, rhs.type_);
     if (type_ == Type::kNull) {

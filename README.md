@@ -1,4 +1,4 @@
-![example workflow name](https://github.com/rbaron/minijson/workflows/Tests/badge.svg)
+[![Tests workflow](https://github.com/rbaron/minijson/workflows/Tests/badge.svg)](https://github.com/rbaron/minijson/actions?query=workflow%3ATests)
 
 # minijson
 Tiny header-only C++ JSON parsing library. Work in progress.
