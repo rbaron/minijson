@@ -120,5 +120,16 @@ TEST(Parser, ThrowOnGetWrongType) {
   ASSERT_THROW(json.GetStr(), std::runtime_error);
 }
 
+TEST(Parser, ThrowOnMalformedNumber) {
+  const std::string text = R"(
+    {
+      "ok": 123.123.31
+    }
+  )";
+  const auto tokens = Tokenize(text);
+  auto it = tokens.begin();
+  ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
+}
+
 } // namespace
 } // namespace minijson::internal
