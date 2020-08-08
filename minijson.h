@@ -44,37 +44,11 @@ bool operator==(const Token &lhs, const Token &rhs) {
 }
 
 Token TokenizeString(std::string::const_iterator *it) {
-  // TODO: out.reserve.
-  // TODO: handle unicode code points.
   std::string out;
   while (*(++*it) != '"') {
     if (**it == '\\') {
-      switch (*++*it) {
-      case 'b':
-        out += '\b';
-        break;
-      case 'f':
-        out += '\f';
-        break;
-      case 'n':
-        out += '\n';
-        break;
-      case 'r':
-        out += '\r';
-        break;
-      case 't':
-        out += '\t';
-        break;
-      case '"':
-        out += '\"';
-        break;
-      case '\\':
-        out += '\\';
-        break;
-      default:
-        throw std::runtime_error("Unrecognized escape sequence: \\" +
-                                 std::to_string(**it));
-      }
+      out += **it;
+      out += *++*it;
     } else {
       out += **it;
     }
@@ -266,6 +240,99 @@ JSONNode ParseJSONConstant(std::vector<Token>::const_iterator *it) {
   }
 }
 
+// Takes the escaped UTF16 representation of a unicode code point (eg: "\\u00ec"
+// or "\\uD834\\uDD1E") and outputs its unicode code point. *it should be
+// pointing to the character 'u'. The iterator is read until the correct number
+// is parsed.
+unsigned long int EscapedUTF16ToCodepoint(std::string::const_iterator *it) {
+  ++*it; // 'u'
+  std::string digits(*it, *it + 4);
+  *it = *it + 4;
+  std::string::size_type sz;
+  unsigned int val = std::stoul(digits, &sz, 16);
+  // Single 16-bit code unit
+  if (val <= 0xd7ff || (val >= 0xe000 && val <= 0xffff)) {
+    return val;
+    // Surrogate pairs
+  } else if (val >= 0xd800 && val <= 0xdfff) {
+    ++*it; // '\\'
+    ++*it; // 'u'
+    std::string low_digits(*it, *it + 4);
+    *it = *it + 4;
+    unsigned int low = std::stoul(low_digits, &sz, 16);
+    // Take 10 LSBs from the high code unit (val) and concatenate with the ones
+    // from the low code unit (low).
+    return ((0x3ff & val) << 10) | (0x3ff & low) | 0x10000;
+  } else {
+    throw std::runtime_error("Invalid unicode encoding with value: " +
+                             std::to_string(val));
+  }
+}
+
+// https://linux.die.net/man/7/utf8
+std::string CodePointToUTF8(unsigned long int code) {
+  if (code < 0x80) {
+    return {static_cast<char>(code & 0xff)};
+  } else if (code < 0x800) {
+    return {static_cast<char>(0xc0 | (code >> 6)),
+            static_cast<char>(0x80 | (code & 0x3f))};
+  } else if (code < 0x10000) {
+    return {static_cast<char>(0xe0 | (code >> 12)),
+            static_cast<char>(0x80 | ((code >> 6) & 0x3f)),
+            static_cast<char>(0x80 | (code & 0x3f))};
+  } else if (code < 0x200000) {
+    return {static_cast<char>(0xf0 | (code >> 18)),
+            static_cast<char>(0x80 | ((code >> 12) & 0x3f)),
+            static_cast<char>(0x80 | ((code >> 6) & 0x3f)),
+            static_cast<char>(0x80 | (code & 0x3f))};
+  }
+  throw std::runtime_error("Code point out of normal people range.");
+}
+
+// TODO: bound-checked iterator
+std::string ParseString(const std::string &input) {
+  std::string out;
+  out.reserve(input.size());
+  auto it = input.begin();
+  while (it != input.end()) {
+    if (*it == '\\') {
+      switch (*++it) {
+      case 'b':
+        out += '\b';
+        break;
+      case 'f':
+        out += '\f';
+        break;
+      case 'n':
+        out += '\n';
+        break;
+      case 'r':
+        out += '\r';
+        break;
+      case 't':
+        out += '\t';
+        break;
+      case '"':
+        out += '\"';
+        break;
+      case '\\':
+        out += '\\';
+        break;
+      case 'u':
+        out += CodePointToUTF8(EscapedUTF16ToCodepoint(&it));
+        break;
+      default:
+        throw std::runtime_error("Unrecognized escape sequence: \\" +
+                                 std::to_string(*it));
+      }
+    } else {
+      out += *(it++);
+    }
+  }
+  out.shrink_to_fit();
+  return out;
+}
+
 JSONNode ParseJSONArr(std::vector<Token>::const_iterator *it) {
   auto arr = std::make_unique<JSONNode::Arr>();
   ASSERT_CHAR_AND_MOVE(it, "[");
@@ -285,7 +352,7 @@ JSONNode ParseJSONObj(std::vector<Token>::const_iterator *it) {
   auto obj = std::make_unique<JSONNode::Obj>();
   ASSERT_CHAR_AND_MOVE(it, "{");
   while ((*it)->type != TokenType::kRCurlyBracket) {
-    std::string key = ((*it)++)->text;
+    std::string key = ParseString(((*it)++)->text);
     ASSERT_CHAR_AND_MOVE(it, ":");
     obj->emplace(key, ParseJSONNode(it));
     if ((*it)->type == TokenType::kComma) {
@@ -309,10 +376,11 @@ std::vector<Token> Tokenize(const std::string &input) {
   return tokens;
 }
 
+// Parses a JSONNode and sets *it to point to the next token to be parsed.
 JSONNode ParseJSONNode(std::vector<Token>::const_iterator *it) {
   switch ((*it)->type) {
   case TokenType::kStr:
-    return JSONNode((*it)++->text);
+    return JSONNode(ParseString(((*it)++)->text));
   case TokenType::kNumber:
     return ParseJSONNumber(it);
   case TokenType::kConstant:

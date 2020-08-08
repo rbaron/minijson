@@ -57,10 +57,10 @@ TEST(Tokenizer, UnderstandEscapeSequences) {
     "It goes:\n\"Muchos años después, frente al pelotón de fusilamiento (...)\""
   )";
   auto tokens = Tokenize(json);
-  ASSERT_THAT(tokens,
-              ::testing::ElementsAre(Token{
-                  TokenType::kStr, "It goes:\n\"Muchos años después, frente al "
-                                   "pelotón de fusilamiento (...)\""}));
+  ASSERT_THAT(tokens, ::testing::ElementsAre(
+                          Token{TokenType::kStr,
+                                "It goes:\\n\\\"Muchos años después, frente al "
+                                "pelotón de fusilamiento (...)\\\""}));
 }
 
 TEST(Tokenizer, IntegerWorks) {
