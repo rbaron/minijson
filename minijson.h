@@ -136,9 +136,49 @@ public:
     }
   }
 
-  // Copy-and-swap. Note that the argument is passed by value, so we operate on
-  // a copy.
-  JSONNode &operator=(JSONNode rhs) {
+  // Copy-and-swap. We cannot pass by value otherwise there's resolution
+  // ambiguity between the copy and move assignments.
+  JSONNode &operator=(const JSONNode &rhs) {
+    JSONNode tmp(rhs);
+    std::swap(type_, tmp.type_);
+    if (type_ == Type::kNull) {
+    } else if (type_ == Type::kBoolean) {
+      std::swap(bool_, tmp.bool_);
+    } else if (type_ == Type::kNumber) {
+      std::swap(number_, tmp.number_);
+    } else if (type_ == Type::kStr) {
+      std::swap(str_, tmp.str_);
+    } else if (type_ == Type::kArr) {
+      std::swap(arr_, tmp.arr_);
+    } else if (type_ == Type::kObj) {
+      std::swap(obj_, tmp.obj_);
+    } else {
+      throw std::runtime_error("Not copy assignable");
+    }
+    return *this;
+  }
+
+  JSONNode(JSONNode &&rhs) {
+    type_ = rhs.type_;
+    if (rhs.type_ == Type::kNull) {
+    } else if (rhs.type_ == Type::kBoolean) {
+      bool_ = rhs.bool_;
+    } else if (rhs.type_ == Type::kNumber) {
+      number_ = rhs.number_;
+    } else if (rhs.type_ == Type::kStr) {
+      new (&str_) std::string(std::move(rhs.str_));
+    } else if (rhs.type_ == Type::kArr) {
+      new (&arr_) std::unique_ptr(std::move(rhs.arr_));
+    } else if (rhs.type_ == Type::kObj) {
+      new (&obj_) std::unique_ptr(std::move(rhs.obj_));
+    } else {
+      throw std::runtime_error("Not move constructible");
+    }
+  }
+
+  // TODO: extract conditional swaps so we can use the same code for copy and
+  // move assignments.
+  JSONNode &operator=(JSONNode &&rhs) {
     std::swap(type_, rhs.type_);
     if (type_ == Type::kNull) {
     } else if (type_ == Type::kBoolean) {
@@ -152,7 +192,7 @@ public:
     } else if (type_ == Type::kObj) {
       std::swap(obj_, rhs.obj_);
     } else {
-      throw std::runtime_error("Not copy assignable");
+      throw std::runtime_error("Not move assignable");
     }
     return *this;
   }
