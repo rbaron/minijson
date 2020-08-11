@@ -39,6 +39,49 @@ struct Token {
   std::string text;
 };
 
+class BoundStream {
+public:
+  BoundStream(const std::string& input): input_(input) {}
+  class iterator {
+  public:
+    // iterator traits
+    using difference_type = std::string::iterator::difference_type;
+    using value_type = std::string::iterator::value_type;
+    using pointer = std::string::iterator::pointer;
+    using reference = std::string::iterator::reference;
+    using iterator_category = std::input_iterator_tag;
+    iterator(const std::string& input): it_(input.begin()), end_(input.end())  {}
+    iterator(const std::string::const_iterator& end): it_(end), end_(end)  {}
+    iterator& operator++() {
+      if (it_ == end_) {
+        throw std::runtime_error("Out of bounds");
+      }
+      ++it_;
+      return *this;
+    }
+    char operator*() const {
+      if (it_ == end_) {
+        throw std::runtime_error("Out of bounds");
+      }
+      return *it_;
+    }
+    bool operator!=(const iterator& rhs) const {
+      return it_ != rhs.it_;
+    }
+  private:
+    std::string::const_iterator it_;
+    std::string::const_iterator end_;
+  };
+  iterator begin() {
+    return iterator(input_);
+  }
+  iterator end() {
+    return input_.end();
+  }
+private:
+  const std::string input_;
+};
+
 bool operator==(const Token &lhs, const Token &rhs) {
   return lhs.type == rhs.type && lhs.text == rhs.text;
 }
