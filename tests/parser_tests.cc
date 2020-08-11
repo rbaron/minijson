@@ -14,7 +14,8 @@ TEST(Parser, ParseString) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_EQ(json["key"].GetStr(), "hello, world");
 }
@@ -26,7 +27,8 @@ TEST(Parser, ParseNumber) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_DOUBLE_EQ(json["ok"].GetNum(), 123);
 }
@@ -39,7 +41,8 @@ TEST(Parser, ParseBoolean) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_TRUE(json["true_key"].GetBool());
   ASSERT_FALSE(json["false_key"].GetBool());
@@ -53,7 +56,8 @@ TEST(Parser, ParseNull) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_TRUE(json["null_key"].IsNull());
   ASSERT_FALSE(json["str_key"].IsNull());
@@ -71,7 +75,8 @@ TEST(Parser, ParseArray) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_EQ(json["key"][0].GetStr(), "hello, world");
   ASSERT_DOUBLE_EQ(json["key"][1]["nested"][1].GetNum(), 2);
@@ -90,7 +95,8 @@ TEST(Parser, ParseNestedDoc) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_EQ(json["nested"]["nested_1"].GetStr(), "abc");
   ASSERT_EQ(json["nested"]["nested_2"]["nested_2_1"].GetStr(), "ok!");
@@ -104,7 +110,8 @@ TEST(Parser, ComplainAboutMissingComma) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
 }
 
@@ -115,7 +122,8 @@ TEST(Parser, ThrowOnGetWrongType) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   JSONNode json = ParseJSONNode(&it);
   ASSERT_THROW(json.GetStr(), std::runtime_error);
 }
@@ -127,7 +135,21 @@ TEST(Parser, ThrowOnMalformedNumber) {
     }
   )";
   const auto tokens = Tokenize(text);
-  auto it = tokens.begin();
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
+  ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
+}
+
+TEST(Parser, ThrowOnUnterminatedDocument) {
+  const std::string text = R"(
+    {
+      "ok": 123.123.31,
+      "ok2:" {
+    }
+  )";
+  const auto tokens = Tokenize(text);
+  auto stream = BoundStream(tokens);
+  auto it = stream.begin();
   ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
 }
 
@@ -176,3 +198,19 @@ INSTANTIATE_TEST_SUITE_P(
 
 } // namespace
 } // namespace minijson::internal
+
+// Public interface tests.
+namespace minijson {
+namespace {
+
+TEST(Parser, ThrowOnLeftover) {
+  const std::string text = R"(
+    {
+      "ok": 123,
+    }trailingcrap
+  )";
+  ASSERT_THROW(Parse(text), std::runtime_error);
+}
+
+} // namespace
+} // namespace minijson

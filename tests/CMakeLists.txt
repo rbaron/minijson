@@ -45,3 +45,7 @@ add_test(NAME parser_tests COMMAND parser_tests)
 add_executable(jsonnode_tests jsonnode_tests.cc)
 target_link_libraries(jsonnode_tests gtest_main gmock_main)
 add_test(NAME jsonnode_tests COMMAND jsonnode_tests)
+
+add_executable(boundstream_tests boundstream_tests.cc)
+target_link_libraries(boundstream_tests gtest_main gmock_main)
+add_test(NAME boundstream_tests COMMAND boundstream_tests)
