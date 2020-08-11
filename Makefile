@@ -17,4 +17,5 @@ build:
 unittests: build
 	./build/tests/tokenizer_tests && \
 	./build/tests/jsonnode_tests && \
-	./build/tests/parser_tests
+	./build/tests/parser_tests && \
+	./build/tests/boundstream_tests

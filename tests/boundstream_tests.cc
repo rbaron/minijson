@@ -15,37 +15,54 @@ TEST(BoundStreamTest, WorkWithRangeForLoop) {
   const std::string input = "hello, world";
   std::string output;
   BoundStream stream(input);
-  for (const auto& c : stream) {
+  for (const auto &c : stream) {
     output += c;
   }
   ASSERT_EQ(input, output);
 }
 
-TEST(BoundStreamTest, ThrowOnOutOfRangeDerefference) {
+TEST(BoundStreamTest, ThrowOnOutOfRangeDereference) {
   const std::string input = "oi";
   BoundStream stream(input);
-  BoundStream::iterator it = stream.begin();
+  auto it = stream.begin();
   ASSERT_EQ(*it, 'o');
   ASSERT_EQ(*++it, 'i');
   ASSERT_THROW(*++it, std::runtime_error);
 }
 
-TEST(BoundStreamTest, ThrowOnOutOfRangeIncrement) {
+TEST(BoundStreamTest, ThrowOnOutOfRangePrefixIncrement) {
   const std::string input = "oi";
   BoundStream stream(input);
-  BoundStream::iterator it = stream.begin();
+  auto it = stream.begin();
   ASSERT_EQ(*it, 'o');
   ASSERT_EQ(*++it, 'i');
   ASSERT_NO_THROW(++it);
   ASSERT_THROW(++it, std::runtime_error);
 }
 
+TEST(BoundStreamTest, ThrowOnOutOfRangePostfixIncrement) {
+  const std::string input = "oi";
+  BoundStream stream(input);
+  auto it = stream.begin();
+  ASSERT_EQ(*it, 'o');
+  ASSERT_EQ(*++it, 'i');
+  ASSERT_NO_THROW(it++);
+  ASSERT_THROW(it++, std::runtime_error);
+}
+
 TEST(BoundStreamTest, Advance) {
   const std::string input = "hello, world";
   BoundStream stream(input);
-  BoundStream::iterator it = stream.begin();
+  auto it = stream.begin();
   std::advance(it, 4);
   ASSERT_EQ(*it, input[4]);
+}
+
+TEST(BoundStreamTest, AdvanceBeyondEndThrows) {
+  const std::string input = "hello, world";
+  BoundStream stream(input);
+  auto it = stream.begin();
+  ASSERT_THROW(std::advance(it, input.size() + 1), std::runtime_error);
 }
 
 } // namespace
