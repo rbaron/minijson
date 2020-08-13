@@ -65,5 +65,14 @@ TEST(BoundStreamTest, AdvanceBeyondEndThrows) {
   ASSERT_THROW(std::advance(it, input.size() + 1), std::runtime_error);
 }
 
+TEST(BoundStreamTest, EndDeref) {
+  const std::string input = "h";
+  BoundStream stream(input);
+  auto it = stream.begin();
+  ASSERT_TRUE(it != stream.end());
+  ++it;
+  ASSERT_FALSE(it != stream.end());
+}
+
 } // namespace
 } // namespace minijson::internal

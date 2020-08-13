@@ -9,9 +9,14 @@
 #include <unordered_map>
 #include <vector>
 
-#define ASSERT_CHAR_AND_MOVE(it, char)                                         \
+#define ASSERT_TOKEN_AND_MOVE(it, char)                                        \
   if (((*it)++)->text != char) {                                               \
     throw std::runtime_error("Expected: " char);                               \
+  }
+
+#define ASSERT_CHAR_AND_MOVE(it, ch)                                           \
+  if (*((*it)++) != ch) {                                                      \
+    throw std::runtime_error(std::string("Expected: ") + ch);                  \
   }
 
 #define ASSERT_TYPE(type)                                                      \
@@ -58,31 +63,30 @@ public:
     iterator(const C &input) : it_(input.begin()), end_(input.end()) {}
     iterator(const typename C::const_iterator &end) : it_(end), end_(end) {}
     iterator &operator++() {
-      if (it_ == end_) {
-        throw std::runtime_error("Out of bounds increment");
-      }
+      check_bounds("Out of bounds increment");
       ++it_;
       return *this;
     }
-    // Postfix ++ operator. Note that the return type is a lvalue.
+    // Postfix ++ operator. Note that the return type is a pre-increment copy.
     iterator operator++(int _) {
-      if (it_ == end_) {
-        throw std::runtime_error("Out of bounds increment");
-      }
+      check_bounds("Out of bounds increment");
       iterator copy = *this;
       it_++;
       return copy;
     }
     const value_type &operator*() const {
-      if (it_ == end_) {
-        throw std::runtime_error("Out of bounds dereference");
-      }
+      check_bounds("Out of bounds dereference");
       return *it_;
     }
     const pointer operator->() { return it_.operator->(); }
     bool operator!=(const iterator &rhs) const { return it_ != rhs.it_; }
 
   private:
+    void check_bounds(const std::string &error_msg) const {
+      if (it_ == end_) {
+        throw std::runtime_error(error_msg);
+      }
+    }
     typename C::const_iterator it_;
     typename C::const_iterator end_;
   };
@@ -334,10 +338,12 @@ JSONNode ParseJSONConstant(BoundStream<std::vector<Token>>::iterator *it) {
 // or "\\uD834\\uDD1E") and outputs its unicode code point. *it should be
 // pointing to the character 'u'. The iterator is read until the correct number
 // is parsed.
-unsigned long int EscapedUTF16ToCodepoint(std::string::const_iterator *it) {
-  ++*it; // 'u'
-  std::string digits(*it, *it + 4);
-  *it = *it + 4;
+unsigned long int
+EscapedUTF16ToCodepoint(BoundStream<std::string>::iterator *it) {
+  ASSERT_CHAR_AND_MOVE(it, 'u');
+  auto begin = *it;
+  std::advance(*it, 4);
+  std::string digits(begin, *it);
   std::string::size_type sz;
   unsigned int val = std::stoul(digits, &sz, 16);
   // Single 16-bit code unit
@@ -345,10 +351,11 @@ unsigned long int EscapedUTF16ToCodepoint(std::string::const_iterator *it) {
     return val;
     // Surrogate pairs
   } else if (val >= 0xd800 && val <= 0xdfff) {
-    ++*it; // '\\'
-    ++*it; // 'u'
-    std::string low_digits(*it, *it + 4);
-    *it = *it + 4;
+    ASSERT_CHAR_AND_MOVE(it, '\\');
+    ASSERT_CHAR_AND_MOVE(it, 'u');
+    begin = *it;
+    std::advance(*it, 4);
+    std::string low_digits(begin, *it);
     unsigned int low = std::stoul(low_digits, &sz, 16);
     // Take 10 LSBs from the high code unit (val) and concatenate with the ones
     // from the low code unit (low).
@@ -379,12 +386,12 @@ std::string CodePointToUTF8(unsigned long int code) {
   throw std::runtime_error("Code point out of normal people range.");
 }
 
-// TODO: bound-checked iterator
 std::string ParseString(const std::string &input) {
   std::string out;
   out.reserve(input.size());
-  auto it = input.begin();
-  while (it != input.end()) {
+  BoundStream<std::string> stream(input);
+  auto it = stream.begin();
+  while (it != stream.end()) {
     if (*it == '\\') {
       switch (*++it) {
       case 'b':
@@ -425,7 +432,7 @@ std::string ParseString(const std::string &input) {
 
 JSONNode ParseJSONArr(BoundStream<std::vector<Token>>::iterator *it) {
   auto arr = std::make_unique<JSONNode::Arr>();
-  ASSERT_CHAR_AND_MOVE(it, "[");
+  ASSERT_TOKEN_AND_MOVE(it, "[");
   while ((*it)->type != TokenType::kRSquareBracket) {
     arr->emplace_back(ParseJSONNode(it));
     if ((*it)->type == TokenType::kComma) {
@@ -434,16 +441,16 @@ JSONNode ParseJSONArr(BoundStream<std::vector<Token>>::iterator *it) {
       throw std::runtime_error("Expected ]");
     }
   }
-  ASSERT_CHAR_AND_MOVE(it, "]");
+  ASSERT_TOKEN_AND_MOVE(it, "]");
   return JSONNode(std::move(arr));
 }
 
 JSONNode ParseJSONObj(BoundStream<std::vector<Token>>::iterator *it) {
   auto obj = std::make_unique<JSONNode::Obj>();
-  ASSERT_CHAR_AND_MOVE(it, "{");
+  ASSERT_TOKEN_AND_MOVE(it, "{");
   while ((*it)->type != TokenType::kRCurlyBracket) {
     std::string key = ParseString(((*it)++)->text);
-    ASSERT_CHAR_AND_MOVE(it, ":");
+    ASSERT_TOKEN_AND_MOVE(it, ":");
     obj->emplace(key, ParseJSONNode(it));
     if ((*it)->type == TokenType::kComma) {
       ++*it;
@@ -451,7 +458,7 @@ JSONNode ParseJSONObj(BoundStream<std::vector<Token>>::iterator *it) {
       throw std::runtime_error("Expected }");
     }
   }
-  ASSERT_CHAR_AND_MOVE(it, "}");
+  ASSERT_TOKEN_AND_MOVE(it, "}");
   return JSONNode(std::move(obj));
 }
 
