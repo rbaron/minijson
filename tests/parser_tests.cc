@@ -156,7 +156,7 @@ TEST(Parser, ThrowOnUnterminatedDocument) {
 TEST(EscapedUTF16ToCodePoint, ParseBaseMultilingualPlaneCodeUnit) {
   // é
   const std::string input("\\u00e9");
-  auto it = input.begin();
+  auto it = BoundStream(input).begin();
   ++it;
   ASSERT_EQ(EscapedUTF16ToCodepoint(&it), 0xe9);
 }
@@ -164,9 +164,25 @@ TEST(EscapedUTF16ToCodePoint, ParseBaseMultilingualPlaneCodeUnit) {
 TEST(EscapedUTD16ToCodePoint, ParseSupplementaryPlanesCodeUnit) {
   // 𝄞
   const std::string input("\\uD834\\uDD1E");
-  auto it = input.begin();
+  auto it = BoundStream(input).begin();
   ++it;
   ASSERT_EQ(EscapedUTF16ToCodepoint(&it), 0x1d11e);
+}
+
+TEST(EscapedUTD16ToCodePoint, ThrowOnWrongEscapeSymbol) {
+  // 𝄞
+  const std::string input("\\bD834");
+  auto it = BoundStream(input).begin();
+  ++it;
+  ASSERT_THROW(EscapedUTF16ToCodepoint(&it), std::runtime_error);
+}
+
+TEST(EscapedUTD16ToCodePoint, ThrowOnMissingDigits) {
+  // Missing the 4th digit
+  const std::string input("\\bD83");
+  auto it = BoundStream(input).begin();
+  ++it;
+  ASSERT_THROW(EscapedUTF16ToCodepoint(&it), std::runtime_error);
 }
 
 struct CodePointToUTF8TestParam {
