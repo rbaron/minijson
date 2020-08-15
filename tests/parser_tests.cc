@@ -4,159 +4,14 @@
 
 #include "minijson.h"
 
+// Internal functions tests.
 namespace minijson::internal {
 namespace {
-
-TEST(Parser, ParseString) {
-  const std::string text = R"(
-    {
-      "key": "hello, world"
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_EQ(json["key"].GetStr(), "hello, world");
-}
-
-TEST(Parser, ParseNumber) {
-  const std::string text = R"(
-    {
-      "ok": 123
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_DOUBLE_EQ(json["ok"].GetNum(), 123);
-}
-
-TEST(Parser, ParseBoolean) {
-  const std::string text = R"(
-    {
-      "true_key": true,
-      "false_key": false
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_TRUE(json["true_key"].GetBool());
-  ASSERT_FALSE(json["false_key"].GetBool());
-}
-
-TEST(Parser, ParseNull) {
-  const std::string text = R"(
-    {
-      "null_key": null,
-      "str_key": "hello, world"
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_TRUE(json["null_key"].IsNull());
-  ASSERT_FALSE(json["str_key"].IsNull());
-}
-
-TEST(Parser, ParseArray) {
-  const std::string text = R"(
-    {
-      "key": [
-        "hello, world",
-        {
-          "nested": [1, 2]
-        }
-      ]
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_EQ(json["key"][0].GetStr(), "hello, world");
-  ASSERT_DOUBLE_EQ(json["key"][1]["nested"][1].GetNum(), 2);
-}
-
-TEST(Parser, ParseNestedDoc) {
-  const std::string text = R"(
-    {
-      "ok": 123,
-      "nested": {
-        "nested_1": "abc",
-        "nested_2": {
-          "nested_2_1": "ok!"
-        }
-      }
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_EQ(json["nested"]["nested_1"].GetStr(), "abc");
-  ASSERT_EQ(json["nested"]["nested_2"]["nested_2_1"].GetStr(), "ok!");
-}
-
-TEST(Parser, ComplainAboutMissingComma) {
-  const std::string text = R"(
-    {
-      "ok": 123
-      "key2": 321
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
-}
-
-TEST(Parser, ThrowOnGetWrongType) {
-  const std::string text = R"(
-    {
-      "ok": 123
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  JSONNode json = ParseJSONNode(&it);
-  ASSERT_THROW(json.GetStr(), std::runtime_error);
-}
-
-TEST(Parser, ThrowOnMalformedNumber) {
-  const std::string text = R"(
-    {
-      "ok": 123.123.31
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
-}
-
-TEST(Parser, ThrowOnUnterminatedDocument) {
-  const std::string text = R"(
-    {
-      "ok": 123.123.31,
-      "ok2:" {
-    }
-  )";
-  const auto tokens = Tokenize(text);
-  auto stream = BoundStream(tokens);
-  auto it = stream.begin();
-  ASSERT_THROW(ParseJSONNode(&it), std::runtime_error);
-}
 
 TEST(EscapedUTF16ToCodePoint, ParseBaseMultilingualPlaneCodeUnit) {
   // é
   const std::string input("\\u00e9");
-  auto it = BoundStream(input).begin();
+  BoundIterator it(input.begin(), input.end());
   ++it;
   ASSERT_EQ(EscapedUTF16ToCodepoint(&it), 0xe9);
 }
@@ -164,7 +19,7 @@ TEST(EscapedUTF16ToCodePoint, ParseBaseMultilingualPlaneCodeUnit) {
 TEST(EscapedUTD16ToCodePoint, ParseSupplementaryPlanesCodeUnit) {
   // 𝄞
   const std::string input("\\uD834\\uDD1E");
-  auto it = BoundStream(input).begin();
+  BoundIterator it(input.begin(), input.end());
   ++it;
   ASSERT_EQ(EscapedUTF16ToCodepoint(&it), 0x1d11e);
 }
@@ -172,7 +27,7 @@ TEST(EscapedUTD16ToCodePoint, ParseSupplementaryPlanesCodeUnit) {
 TEST(EscapedUTD16ToCodePoint, ThrowOnWrongEscapeSymbol) {
   // 𝄞
   const std::string input("\\bD834");
-  auto it = BoundStream(input).begin();
+  BoundIterator it(input.begin(), input.end());
   ++it;
   ASSERT_THROW(EscapedUTF16ToCodepoint(&it), std::runtime_error);
 }
@@ -180,7 +35,7 @@ TEST(EscapedUTD16ToCodePoint, ThrowOnWrongEscapeSymbol) {
 TEST(EscapedUTD16ToCodePoint, ThrowOnMissingDigits) {
   // Missing the 4th digit
   const std::string input("\\bD83");
-  auto it = BoundStream(input).begin();
+  BoundIterator it(input.begin(), input.end());
   ++it;
   ASSERT_THROW(EscapedUTF16ToCodepoint(&it), std::runtime_error);
 }
@@ -218,6 +73,122 @@ INSTANTIATE_TEST_SUITE_P(
 // Public interface tests.
 namespace minijson {
 namespace {
+
+TEST(Parser, ParseString) {
+  const std::string text = R"(
+    {
+      "key": "hello, world"
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_EQ(json["key"].GetStr(), "hello, world");
+}
+
+TEST(Parser, ParseNumber) {
+  const std::string text = R"(
+    {
+      "ok": 123
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_DOUBLE_EQ(json["ok"].GetNum(), 123);
+}
+
+TEST(Parser, ParseBoolean) {
+  const std::string text = R"(
+    {
+      "true_key": true,
+      "false_key": false
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_TRUE(json["true_key"].GetBool());
+  ASSERT_FALSE(json["false_key"].GetBool());
+}
+
+TEST(Parser, ParseNull) {
+  const std::string text = R"(
+    {
+      "null_key": null,
+      "str_key": "hello, world"
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_TRUE(json["null_key"].IsNull());
+  ASSERT_FALSE(json["str_key"].IsNull());
+}
+
+TEST(Parser, ParseArray) {
+  const std::string text = R"(
+    {
+      "key": [
+        "hello, world",
+        {
+          "nested": [1, 2]
+        }
+      ]
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_EQ(json["key"][0].GetStr(), "hello, world");
+  ASSERT_DOUBLE_EQ(json["key"][1]["nested"][1].GetNum(), 2);
+}
+
+TEST(Parser, ParseNestedDoc) {
+  const std::string text = R"(
+    {
+      "ok": 123,
+      "nested": {
+        "nested_1": "abc",
+        "nested_2": {
+          "nested_2_1": "ok!"
+        }
+      }
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_EQ(json["nested"]["nested_1"].GetStr(), "abc");
+  ASSERT_EQ(json["nested"]["nested_2"]["nested_2_1"].GetStr(), "ok!");
+}
+
+TEST(Parser, ComplainAboutMissingComma) {
+  const std::string text = R"(
+    {
+      "ok": 123
+      "key2": 321
+    }
+  )";
+  ASSERT_THROW(Parse(text), std::runtime_error);
+}
+
+TEST(Parser, ThrowOnGetWrongType) {
+  const std::string text = R"(
+    {
+      "ok": 123
+    }
+  )";
+  JSONNode json = Parse(text);
+  ASSERT_THROW(json.GetStr(), std::runtime_error);
+}
+
+TEST(Parser, ThrowOnMalformedNumber) {
+  const std::string text = R"(
+    {
+      "ok": 123.123.31
+    }
+  )";
+  ASSERT_THROW(Parse(text), std::runtime_error);
+}
+
+TEST(Parser, ThrowOnUnterminatedDocument) {
+  const std::string text = R"(
+    {
+      "ok": 123.123.31,
+      "ok2:" {
+    }
+  )";
+  ASSERT_THROW(Parse(text), std::runtime_error);
+}
 
 TEST(Parser, ThrowOnLeftover) {
   const std::string text = R"(
