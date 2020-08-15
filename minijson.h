@@ -48,53 +48,47 @@ bool operator==(const Token &lhs, const Token &rhs) {
   return lhs.type == rhs.type && lhs.text == rhs.text;
 }
 
-// Template wrapping a container. It provides exception-throwing iterators.
-// The main use is to throw errors on malformed json inputs.
-template <typename C> class BoundStream {
+// Bounds-checking iterator. The main use is to throw errors on malformed json
+// inputs.
+template <typename Iter> class BoundIterator {
 public:
-  BoundStream(const C &input) : input_(input) {}
-  class iterator {
-  public:
-    using difference_type = typename C::const_iterator::difference_type;
-    using value_type = typename C::const_iterator::value_type;
-    using pointer = typename C::const_iterator::pointer;
-    using reference = typename C::const_iterator::reference;
-    using iterator_category = std::input_iterator_tag;
-    iterator(const C &input) : it_(input.begin()), end_(input.end()) {}
-    iterator(const typename C::const_iterator &end) : it_(end), end_(end) {}
-    iterator &operator++() {
-      check_bounds("Out of bounds increment");
-      ++it_;
-      return *this;
-    }
-    // Postfix ++ operator. Note that the return type is a pre-increment copy.
-    iterator operator++(int _) {
-      check_bounds("Out of bounds increment");
-      iterator copy = *this;
-      it_++;
-      return copy;
-    }
-    const value_type &operator*() const {
-      check_bounds("Out of bounds dereference");
-      return *it_;
-    }
-    const pointer operator->() { return it_.operator->(); }
-    bool operator!=(const iterator &rhs) const { return it_ != rhs.it_; }
+  using difference_type = typename Iter::difference_type;
+  using value_type = typename Iter::value_type;
+  using pointer = typename Iter::pointer;
+  using reference = typename Iter::reference;
+  using iterator_category = std::input_iterator_tag;
 
-  private:
-    void check_bounds(const std::string &error_msg) const {
-      if (it_ == end_) {
-        throw std::runtime_error(error_msg);
-      }
-    }
-    typename C::const_iterator it_;
-    typename C::const_iterator end_;
-  };
-  iterator begin() { return iterator(input_); }
-  iterator end() { return input_.end(); }
+  BoundIterator(const Iter &begin, const Iter &end) : it_(begin), end_(end) {}
+
+  // Prefix ++ operator.
+  BoundIterator &operator++() {
+    check_bounds("Out of bounds increment");
+    ++it_;
+    return *this;
+  }
+  // Postfix ++ operator. Note that the return type is a pre-increment copy.
+  BoundIterator operator++(int _) {
+    check_bounds("Out of bounds increment");
+    BoundIterator copy = *this;
+    it_++;
+    return copy;
+  }
+  const value_type &operator*() const {
+    check_bounds("Out of bounds dereference");
+    return *it_;
+  }
+  const pointer operator->() { return it_.operator->(); }
+  bool operator!=(const BoundIterator &rhs) const { return it_ != rhs.it_; }
+  bool end() { return it_ == end_; }
 
 private:
-  const C input_;
+  void check_bounds(const std::string &error_msg) const {
+    if (it_ == end_) {
+      throw std::runtime_error(error_msg);
+    }
+  }
+  Iter it_;
+  Iter end_;
 };
 
 Token TokenizeString(std::string::const_iterator *it) {
@@ -151,6 +145,17 @@ std::optional<Token> TonekizeOne(std::string::const_iterator *it) {
     ++*it;
     return std::nullopt;
   }
+}
+
+std::vector<Token> Tokenize(const std::string &input) {
+  std::vector<Token> tokens;
+  for (auto it = input.begin(); it != input.end();) {
+    std::optional<Token> token = TonekizeOne(&it);
+    if (token.has_value()) {
+      tokens.push_back(token.value());
+    }
+  }
+  return tokens;
 }
 
 class JSONNode {
@@ -309,9 +314,10 @@ private:
   };
 };
 
-JSONNode ParseJSONNode(BoundStream<std::vector<Token>>::iterator *it);
+JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it);
 
-JSONNode ParseJSONNumber(BoundStream<std::vector<Token>>::iterator *it) {
+JSONNode
+ParseJSONNumber(BoundIterator<std::vector<Token>::const_iterator> *it) {
   const std::string &text = ((*it)++)->text;
   std::string::size_type sz;
   double number = std::stod(text, &sz);
@@ -321,7 +327,8 @@ JSONNode ParseJSONNumber(BoundStream<std::vector<Token>>::iterator *it) {
   return JSONNode(number);
 }
 
-JSONNode ParseJSONConstant(BoundStream<std::vector<Token>>::iterator *it) {
+JSONNode
+ParseJSONConstant(BoundIterator<std::vector<Token>::const_iterator> *it) {
   const std::string &name = ((*it)++)->text;
   if (name == "true") {
     return JSONNode(true);
@@ -339,7 +346,8 @@ JSONNode ParseJSONConstant(BoundStream<std::vector<Token>>::iterator *it) {
 // pointing to the character 'u'. The iterator is read until the correct number
 // is parsed.
 unsigned long int
-EscapedUTF16ToCodepoint(BoundStream<std::string>::iterator *it) {
+// EscapedUTF16ToCodepoint(BoundStream<std::string>::iterator *it) {
+EscapedUTF16ToCodepoint(BoundIterator<std::string::const_iterator> *it) {
   ASSERT_CHAR_AND_MOVE(it, 'u');
   auto begin = *it;
   std::advance(*it, 4);
@@ -389,9 +397,8 @@ std::string CodePointToUTF8(unsigned long int code) {
 std::string ParseString(const std::string &input) {
   std::string out;
   out.reserve(input.size());
-  BoundStream<std::string> stream(input);
-  auto it = stream.begin();
-  while (it != stream.end()) {
+  BoundIterator it(input.begin(), input.end());
+  while (!it.end()) {
     if (*it == '\\') {
       switch (*++it) {
       case 'b':
@@ -430,7 +437,7 @@ std::string ParseString(const std::string &input) {
   return out;
 }
 
-JSONNode ParseJSONArr(BoundStream<std::vector<Token>>::iterator *it) {
+JSONNode ParseJSONArr(BoundIterator<std::vector<Token>::const_iterator> *it) {
   auto arr = std::make_unique<JSONNode::Arr>();
   ASSERT_TOKEN_AND_MOVE(it, "[");
   while ((*it)->type != TokenType::kRSquareBracket) {
@@ -445,7 +452,7 @@ JSONNode ParseJSONArr(BoundStream<std::vector<Token>>::iterator *it) {
   return JSONNode(std::move(arr));
 }
 
-JSONNode ParseJSONObj(BoundStream<std::vector<Token>>::iterator *it) {
+JSONNode ParseJSONObj(BoundIterator<std::vector<Token>::const_iterator> *it) {
   auto obj = std::make_unique<JSONNode::Obj>();
   ASSERT_TOKEN_AND_MOVE(it, "{");
   while ((*it)->type != TokenType::kRCurlyBracket) {
@@ -462,19 +469,8 @@ JSONNode ParseJSONObj(BoundStream<std::vector<Token>>::iterator *it) {
   return JSONNode(std::move(obj));
 }
 
-std::vector<Token> Tokenize(const std::string &input) {
-  std::vector<Token> tokens;
-  for (auto it = input.begin(); it != input.end();) {
-    std::optional<Token> token = TonekizeOne(&it);
-    if (token.has_value()) {
-      tokens.push_back(token.value());
-    }
-  }
-  return tokens;
-}
-
 // Parses a JSONNode and sets *it to point to the next token to be parsed.
-JSONNode ParseJSONNode(BoundStream<std::vector<Token>>::iterator *it) {
+JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it) {
   switch ((*it)->type) {
   case TokenType::kStr:
     return JSONNode(ParseString(((*it)++)->text));
@@ -497,10 +493,9 @@ using JSONNode = internal::JSONNode;
 
 JSONNode Parse(const std::string &text) {
   const std::vector<internal::Token> tokens = internal::Tokenize(text);
-  internal::BoundStream stream(tokens);
-  auto it = stream.begin();
+  internal::BoundIterator it(tokens.begin(), tokens.end());
   JSONNode result = internal::ParseJSONNode(&it);
-  if (it != stream.end()) {
+  if (!it.end()) {
     throw std::runtime_error(
         "A document was parsed, but there is leftover data in the input");
   }
