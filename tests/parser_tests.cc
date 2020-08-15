@@ -199,5 +199,19 @@ TEST(Parser, ThrowOnLeftover) {
   ASSERT_THROW(Parse(text), std::runtime_error);
 }
 
+TEST(Parser, ThrowOnMalformedArrayMissingClosingBracket) {
+  const std::string text = R"(
+    [true, false
+  )";
+  ASSERT_THROW(Parse(text), std::runtime_error);
+}
+
+TEST(Parser, ThrowOnMalformedArrayMissingComma) {
+  const std::string text = R"(
+    [true false]
+  )";
+  ASSERT_THROW(Parse(text), std::runtime_error);
+}
+
 } // namespace
 } // namespace minijson

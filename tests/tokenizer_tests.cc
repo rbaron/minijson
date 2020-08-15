@@ -74,5 +74,13 @@ TEST(Tokenizer, FloatingPointWorks) {
               ::testing::ElementsAre(Token{TokenType::kNumber, "123.123"}));
 }
 
+TEST(Tokenizer, ThrowOnMalformedString) {
+  // Missing closing quotes.
+  const std::string json = R"(
+    "Ok!
+  )";
+  ASSERT_THROW(Tokenize(json), std::runtime_error);
+}
+
 } // namespace
 } // namespace minijson::internal

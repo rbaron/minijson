@@ -91,7 +91,7 @@ private:
   Iter end_;
 };
 
-Token TokenizeString(std::string::const_iterator *it) {
+Token TokenizeString(BoundIterator<std::string::const_iterator> *it) {
   std::string out;
   while (*(++*it) != '"') {
     if (**it == '\\') {
@@ -105,23 +105,24 @@ Token TokenizeString(std::string::const_iterator *it) {
   return Token{TokenType::kStr, out};
 }
 
-Token TokenizeNumber(std::string::const_iterator *it) {
+Token TokenizeNumber(BoundIterator<std::string::const_iterator> *it) {
   auto start = *it;
-  while (isdigit(*(++*it)) || **it == '.')
+  while (!(++*it).end() && (isdigit(**it) || **it == '.'))
     ;
   return Token{TokenType::kNumber, std::string(start, *it)};
 }
 
 bool IsNameChar(char c) { return isalnum(c) || c == '_' || c == '-'; }
 
-Token TokenizeName(std::string::const_iterator *it) {
+Token TokenizeName(BoundIterator<std::string::const_iterator> *it) {
   auto start = *it;
   while (IsNameChar(*++*it))
     ;
   return Token{TokenType::kConstant, std::string(start, *it)};
 }
 
-std::optional<Token> TonekizeOne(std::string::const_iterator *it) {
+std::optional<Token>
+TonekizeOne(BoundIterator<std::string::const_iterator> *it) {
   if (**it == '{') {
     return Token{TokenType::kLCurlyBracket, std::string(*it, ++*it)};
   } else if (**it == '}') {
@@ -149,7 +150,7 @@ std::optional<Token> TonekizeOne(std::string::const_iterator *it) {
 
 std::vector<Token> Tokenize(const std::string &input) {
   std::vector<Token> tokens;
-  for (auto it = input.begin(); it != input.end();) {
+  for (BoundIterator it(input.begin(), input.end()); !it.end();) {
     std::optional<Token> token = TonekizeOne(&it);
     if (token.has_value()) {
       tokens.push_back(token.value());
