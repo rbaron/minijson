@@ -34,7 +34,7 @@ if (CMAKE_VERSION VERSION_LESS 2.8.11)
                       "${gmock_SOURCE_DIR}/include")
 endif()
 
-add_executable(tokenizer_tests lexer_tests.cc)
+add_executable(tokenizer_tests tokenizer_tests.cc)
 target_link_libraries(tokenizer_tests gtest_main gmock_main)
 add_test(NAME tokenizer_tests COMMAND tokenizer_tests)
 
