@@ -27,7 +27,8 @@ TEST(Tokenizer, TokenizeSmokeTest) {
       }
     }
   )";
-  auto tokens = Tokenize(json);
+  std::istringstream stream(json);
+  auto tokens = Tokenize(&stream);
   ASSERT_THAT(
       tokens,
       ::testing::ElementsAre(
@@ -56,7 +57,8 @@ TEST(Tokenizer, UnderstandEscapeSequences) {
   const std::string json = R"(
     "It goes:\n\"Muchos años después, frente al pelotón de fusilamiento (...)\""
   )";
-  auto tokens = Tokenize(json);
+  std::istringstream stream(json);
+  auto tokens = Tokenize(&stream);
   ASSERT_THAT(tokens, ::testing::ElementsAre(
                           Token{TokenType::kStr,
                                 "It goes:\\n\\\"Muchos años después, frente al "
@@ -64,14 +66,24 @@ TEST(Tokenizer, UnderstandEscapeSequences) {
 }
 
 TEST(Tokenizer, IntegerWorks) {
-  auto tokens = Tokenize("123");
+  std::istringstream stream("123");
+  auto tokens = Tokenize(&stream);
   ASSERT_THAT(tokens, ::testing::ElementsAre(Token{TokenType::kNumber, "123"}));
 }
 
 TEST(Tokenizer, FloatingPointWorks) {
-  auto tokens = Tokenize("123.123");
+  std::istringstream stream("123.123");
+  auto tokens = Tokenize(&stream);
   ASSERT_THAT(tokens,
               ::testing::ElementsAre(Token{TokenType::kNumber, "123.123"}));
+}
+
+TEST(Tokenizer, ObjectWorks) {
+  std::istringstream stream("{}");
+  auto tokens = Tokenize(&stream);
+  ASSERT_THAT(tokens,
+              ::testing::ElementsAre(Token{TokenType::kLCurlyBracket, "{"},
+                                     Token{TokenType::kRCurlyBracket, "}"}));
 }
 
 TEST(Tokenizer, ThrowOnMalformedString) {
@@ -79,7 +91,8 @@ TEST(Tokenizer, ThrowOnMalformedString) {
   const std::string json = R"(
     "Ok!
   )";
-  ASSERT_THROW(Tokenize(json), std::runtime_error);
+  std::istringstream stream(json);
+  ASSERT_THROW(Tokenize(&stream), std::runtime_error);
 }
 
 } // namespace

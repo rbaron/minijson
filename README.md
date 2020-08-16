@@ -67,10 +67,7 @@ int main(int argc, char **argv) {
 ## Unit tests
 ```bash
 # Build
-$ cd build/
-$ cmake -G 'Unix Makefiles' -DCMAKE_BUILD_TYPE=Debug ..
-$ cmake --build .
+$ make build
 # Run
-$ ./tests/parser_tests
-$ ./tests/lexer_tests
+$ make unittests
 ```

@@ -1,1 +1,2 @@
 add_executable(json_parsing json_parsing.cc)
+add_executable(parsing_from_file parsing_from_file.cc)

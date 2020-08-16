@@ -2,8 +2,10 @@
 #define _MINIJSON_H_
 
 #include <cctype>
+#include <iterator>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdlib.h>
 #include <string>
 #include <unordered_map>
@@ -91,7 +93,7 @@ private:
   Iter end_;
 };
 
-Token TokenizeString(BoundIterator<std::string::const_iterator> *it) {
+Token TokenizeString(BoundIterator<std::istream_iterator<char>> *it) {
   std::string out;
   while (*(++*it) != '"') {
     if (**it == '\\') {
@@ -105,42 +107,50 @@ Token TokenizeString(BoundIterator<std::string::const_iterator> *it) {
   return Token{TokenType::kStr, out};
 }
 
-Token TokenizeNumber(BoundIterator<std::string::const_iterator> *it) {
-  auto start = *it;
-  while (!(++*it).end() && (isdigit(**it) || **it == '.'))
-    ;
-  return Token{TokenType::kNumber, std::string(start, *it)};
+Token TokenizeNumber(BoundIterator<std::istream_iterator<char>> *it) {
+  std::string out;
+  out += **it;
+  while (!(++*it).end() && (isdigit(**it) || **it == '.')) {
+    out += **it;
+  }
+  return Token{TokenType::kNumber, out};
 }
 
-bool IsNameChar(char c) { return isalnum(c) || c == '_' || c == '-'; }
-
-Token TokenizeName(BoundIterator<std::string::const_iterator> *it) {
-  auto start = *it;
-  while (IsNameChar(*++*it))
-    ;
-  return Token{TokenType::kConstant, std::string(start, *it)};
+Token TokenizeConstant(BoundIterator<std::istream_iterator<char>> *it) {
+  std::string out;
+  out += **it;
+  while (isalpha(*++*it)) {
+    out += **it;
+  }
+  return Token{TokenType::kConstant, out};
 }
 
 std::optional<Token>
-TonekizeOne(BoundIterator<std::string::const_iterator> *it) {
+TonekizeOne(BoundIterator<std::istream_iterator<char>> *it) {
   if (**it == '{') {
-    return Token{TokenType::kLCurlyBracket, std::string(*it, ++*it)};
+    ++*it;
+    return Token{TokenType::kLCurlyBracket, "{"};
   } else if (**it == '}') {
-    return Token{TokenType::kRCurlyBracket, std::string(*it, ++*it)};
+    ++*it;
+    return Token{TokenType::kRCurlyBracket, "}"};
   } else if (**it == '[') {
-    return Token{TokenType::kLSquareBracket, std::string(*it, ++*it)};
+    ++*it;
+    return Token{TokenType::kLSquareBracket, "["};
   } else if (**it == ']') {
-    return Token{TokenType::kRSquareBracket, std::string(*it, ++*it)};
+    ++*it;
+    return Token{TokenType::kRSquareBracket, "]"};
   } else if (**it == ':') {
-    return Token{TokenType::kColon, std::string(*it, ++*it)};
+    ++*it;
+    return Token{TokenType::kColon, ":"};
   } else if (**it == ',') {
-    return Token{TokenType::kComma, std::string(*it, ++*it)};
+    ++*it;
+    return Token{TokenType::kComma, ","};
   } else if (**it == '"') {
     return TokenizeString(it);
   } else if (isdigit(**it)) {
     return TokenizeNumber(it);
-  } else if (IsNameChar(**it)) {
-    return TokenizeName(it);
+  } else if (isalpha(**it)) {
+    return TokenizeConstant(it);
     // Whitespaces, hopefully
   } else {
     ++*it;
@@ -148,9 +158,13 @@ TonekizeOne(BoundIterator<std::string::const_iterator> *it) {
   }
 }
 
-std::vector<Token> Tokenize(const std::string &input) {
+std::vector<Token> Tokenize(std::istream *input) {
   std::vector<Token> tokens;
-  for (BoundIterator it(input.begin(), input.end()); !it.end();) {
+  *input >> std::noskipws;
+  // TODO: consider istreambuf_iterator.
+  BoundIterator it{std::istream_iterator<char>(*input),
+                   std::istream_iterator<char>()};
+  while (!it.end()) {
     std::optional<Token> token = TonekizeOne(&it);
     if (token.has_value()) {
       tokens.push_back(token.value());
@@ -492,8 +506,8 @@ JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it) {
 
 using JSONNode = internal::JSONNode;
 
-JSONNode Parse(const std::string &text) {
-  const std::vector<internal::Token> tokens = internal::Tokenize(text);
+JSONNode Parse(std::istream *in) {
+  const std::vector<internal::Token> tokens = internal::Tokenize(in);
   internal::BoundIterator it(tokens.begin(), tokens.end());
   JSONNode result = internal::ParseJSONNode(&it);
   if (!it.end()) {
@@ -501,6 +515,11 @@ JSONNode Parse(const std::string &text) {
         "A document was parsed, but there is leftover data in the input");
   }
   return result;
+}
+
+JSONNode Parse(const std::string &text) {
+  std::istringstream in(text);
+  return Parse(&in);
 }
 
 } // namespace minijson

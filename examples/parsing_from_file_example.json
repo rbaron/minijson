@@ -1,0 +1,15 @@
+{
+  "str_key": "hello, world",
+  "num_key": 123,
+  "null_key": null,
+  "true_key": true,
+  "nested_obj_key": {
+    "nested_arr_key": [
+      "elem1",
+      "elem2",
+      {
+        "inner_obj_key": "ok!"
+      },
+    ]
+  }
+}
