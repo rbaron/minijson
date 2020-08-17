@@ -49,3 +49,7 @@ add_test(NAME jsonnode_tests COMMAND jsonnode_tests)
 add_executable(bounditerator_tests bounditerator_tests.cc)
 target_link_libraries(bounditerator_tests gtest_main gmock_main)
 add_test(NAME bounditerator_tests COMMAND bounditerator_tests)
+
+add_executable(iterator_tests iterator_tests.cc)
+target_link_libraries(iterator_tests gtest_main gmock_main)
+add_test(NAME iterator_tests COMMAND iterator_tests)

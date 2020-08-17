@@ -210,28 +210,6 @@ public:
     }
   }
 
-  // Copy-and-swap. We cannot pass by value otherwise there's resolution
-  // ambiguity between the copy and move assignments.
-  JSONNode &operator=(const JSONNode &rhs) {
-    JSONNode tmp(rhs);
-    std::swap(type_, tmp.type_);
-    if (type_ == Type::kNull) {
-    } else if (type_ == Type::kBoolean) {
-      std::swap(bool_, tmp.bool_);
-    } else if (type_ == Type::kNumber) {
-      std::swap(number_, tmp.number_);
-    } else if (type_ == Type::kStr) {
-      std::swap(str_, tmp.str_);
-    } else if (type_ == Type::kArr) {
-      std::swap(arr_, tmp.arr_);
-    } else if (type_ == Type::kObj) {
-      std::swap(obj_, tmp.obj_);
-    } else {
-      throw std::runtime_error("Not copy assignable");
-    }
-    return *this;
-  }
-
   JSONNode(JSONNode &&rhs) {
     type_ = rhs.type_;
     if (rhs.type_ == Type::kNull) {
@@ -250,24 +228,31 @@ public:
     }
   }
 
-  // TODO: extract conditional swaps so we can use the same code for copy and
-  // move assignments.
-  JSONNode &operator=(JSONNode &&rhs) {
-    std::swap(type_, rhs.type_);
-    if (type_ == Type::kNull) {
-    } else if (type_ == Type::kBoolean) {
-      std::swap(bool_, rhs.bool_);
-    } else if (type_ == Type::kNumber) {
-      std::swap(number_, rhs.number_);
-    } else if (type_ == Type::kStr) {
-      std::swap(str_, rhs.str_);
-    } else if (type_ == Type::kArr) {
-      std::swap(arr_, rhs.arr_);
-    } else if (type_ == Type::kObj) {
-      std::swap(obj_, rhs.obj_);
+  friend void swap(JSONNode &lhs, JSONNode &rhs) {
+    using std::swap;
+    swap(lhs.type_, rhs.type_);
+    if (lhs.type_ == Type::kNull) {
+    } else if (lhs.type_ == Type::kBoolean) {
+      swap(lhs.bool_, rhs.bool_);
+    } else if (lhs.type_ == Type::kNumber) {
+      swap(lhs.number_, rhs.number_);
+    } else if (lhs.type_ == Type::kStr) {
+      swap(lhs.str_, rhs.str_);
+    } else if (lhs.type_ == Type::kArr) {
+      swap(lhs.arr_, rhs.arr_);
+    } else if (lhs.type_ == Type::kObj) {
+      swap(lhs.obj_, rhs.obj_);
     } else {
-      throw std::runtime_error("Not move assignable");
+      throw std::runtime_error("Swap not implemented for type");
     }
+  }
+
+  // Copy-and-swap.
+  // Note that this already covers the move assignment operation too, since we
+  // have provided a move constructor - in this case, rhs will be
+  // move-constructed when the assignment operator is called with a rvalue.
+  JSONNode &operator=(JSONNode rhs) {
+    swap(*this, rhs);
     return *this;
   }
 
@@ -306,6 +291,38 @@ public:
   std::string GetStr() const {
     ASSERT_TYPE(Type::kStr);
     return str_;
+  }
+
+  // Iterators
+private:
+  class iterable_obj {
+  public:
+    iterable_obj(const JSONNode *const json_node) : json_node_(json_node) {}
+    Obj::const_iterator begin() const { return json_node_->obj_->begin(); }
+    Obj::const_iterator end() const { return json_node_->obj_->end(); }
+
+  private:
+    const JSONNode *const json_node_;
+  };
+
+  class iterable_arr {
+  public:
+    iterable_arr(const JSONNode *const json_node) : json_node_(json_node) {}
+    Arr::const_iterator begin() const { return json_node_->arr_->begin(); }
+    Arr::const_iterator end() const { return json_node_->arr_->end(); }
+
+  private:
+    const JSONNode *const json_node_;
+  };
+
+public:
+  iterable_obj IterableObj() const {
+    ASSERT_TYPE(Type::kObj);
+    return iterable_obj(this);
+  }
+  iterable_arr IterableArr() const {
+    ASSERT_TYPE(Type::kArr);
+    return iterable_arr(this);
   }
 
 private:
