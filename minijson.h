@@ -293,38 +293,16 @@ public:
     return str_;
   }
 
-  // Iterators
+  // Iterators.
 private:
-  class iterable_obj {
-  public:
-    iterable_obj(const JSONNode *const json_node) : json_node_(json_node) {}
-    Obj::const_iterator begin() const { return json_node_->obj_->begin(); }
-    Obj::const_iterator end() const { return json_node_->obj_->end(); }
-
-  private:
-    const JSONNode *const json_node_;
-  };
-
-  class iterable_arr {
-  public:
-    iterable_arr(const JSONNode *const json_node) : json_node_(json_node) {}
-    Arr::const_iterator begin() const { return json_node_->arr_->begin(); }
-    Arr::const_iterator end() const { return json_node_->arr_->end(); }
-
-  private:
-    const JSONNode *const json_node_;
-  };
+  class iterable_obj;
+  class iterable_arr;
 
 public:
-  iterable_obj IterableObj() const {
-    ASSERT_TYPE(Type::kObj);
-    return iterable_obj(this);
-  }
-  iterable_arr IterableArr() const {
-    ASSERT_TYPE(Type::kArr);
-    return iterable_arr(this);
-  }
+  iterable_obj IterableObj() const;
+  iterable_arr IterableArr() const;
 
+  // Data members.
 private:
   // We implement the "tagged union" idiom from
   // "The C++ Programming Language 4th edition".
@@ -345,6 +323,35 @@ private:
     std::unique_ptr<Arr> arr_;
   };
 };
+
+class JSONNode::iterable_obj {
+public:
+  iterable_obj(const JSONNode *const json_node) : json_node_(json_node) {}
+  Obj::const_iterator begin() const { return json_node_->obj_->begin(); }
+  Obj::const_iterator end() const { return json_node_->obj_->end(); }
+
+private:
+  const JSONNode *const json_node_;
+};
+
+class JSONNode::iterable_arr {
+public:
+  iterable_arr(const JSONNode *const json_node) : json_node_(json_node) {}
+  Arr::const_iterator begin() const { return json_node_->arr_->begin(); }
+  Arr::const_iterator end() const { return json_node_->arr_->end(); }
+
+private:
+  const JSONNode *const json_node_;
+};
+
+JSONNode::iterable_obj JSONNode::IterableObj() const {
+  ASSERT_TYPE(Type::kObj);
+  return iterable_obj(this);
+}
+JSONNode::iterable_arr JSONNode::IterableArr() const {
+  ASSERT_TYPE(Type::kArr);
+  return iterable_arr(this);
+}
 
 JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it);
 
@@ -378,7 +385,6 @@ ParseJSONConstant(BoundIterator<std::vector<Token>::const_iterator> *it) {
 // pointing to the character 'u'. The iterator is read until the correct number
 // is parsed.
 unsigned long int
-// EscapedUTF16ToCodepoint(BoundStream<std::string>::iterator *it) {
 EscapedUTF16ToCodepoint(BoundIterator<std::string::const_iterator> *it) {
   ASSERT_CHAR_AND_MOVE(it, 'u');
   auto begin = *it;
