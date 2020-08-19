@@ -30,6 +30,12 @@
   }
 
 namespace minijson {
+
+namespace internal {
+class JSONNode;
+}
+std::string Serialize(const internal::JSONNode &json);
+
 namespace internal {
 
 enum class TokenType {
@@ -176,6 +182,7 @@ std::vector<Token> Tokenize(std::istream *input) {
   return tokens;
 }
 
+// TODO: handle integers. See https://tools.ietf.org/html/rfc7159#section-6.
 class JSONNode {
 public:
   using Obj = std::unordered_map<std::string, JSONNode>;
@@ -269,6 +276,18 @@ public:
     }
   };
 
+  enum class Type {
+    kNull,
+    kBoolean,
+    kNumber,
+    kStr,
+    kArr,
+    kObj,
+  };
+
+  Type GetType() const { return type_; }
+
+  // TODO: allow null -> obj type change.
   JSONNode &operator[](const std::string &key) {
     ASSERT_TYPE(Type::kObj);
     return (*obj_)[key];
@@ -277,6 +296,12 @@ public:
   JSONNode &operator[](const size_t idx) {
     ASSERT_TYPE(Type::kArr);
     return (*arr_)[idx];
+  }
+
+  // TODO: allow null -> arr type change.
+  void push_back(JSONNode rhs) {
+    ASSERT_TYPE(Type::kArr);
+    arr_->push_back(rhs);
   }
 
   bool IsNull() const { return type_ == Type::kNull; }
@@ -309,14 +334,6 @@ public:
 private:
   // We implement the "tagged union" idiom from
   // "The C++ Programming Language 4th edition".
-  enum class Type {
-    kNull,
-    kBoolean,
-    kNumber,
-    kStr,
-    kArr,
-    kObj,
-  };
   Type type_;
   union {
     bool bool_;
@@ -551,6 +568,48 @@ JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it) {
   }
 }
 
+std::string SerializeString(const std::string &str) {
+  std::string out("\"");
+  out += str;
+  out += '\"';
+  return out;
+}
+
+std::string SerializeArray(const JSONNode &json) {
+  auto it = json.IterableArr();
+  if (it.begin() == it.end()) {
+    return "[]";
+  }
+  std::string out("[");
+  std::for_each(it.begin(), it.end(), [&out](const JSONNode &node) {
+    out += Serialize(node);
+    out += ',';
+  });
+  // Remove trailing ','
+  out.pop_back();
+  out += "]";
+  return out;
+}
+
+std::string SerializeObj(const JSONNode &json) {
+  auto it = json.IterableObj();
+  if (it.begin() == it.end()) {
+    return "{}";
+  }
+  std::string out("{");
+  std::for_each(it.begin(), it.end(),
+                [&out](const JSONNode::Obj::value_type &kv) {
+                  out += SerializeString(kv.first);
+                  out += ':';
+                  out += Serialize(kv.second);
+                  out += ',';
+                });
+  // Remove trailing ','
+  out.pop_back();
+  out += "}";
+  return out;
+}
+
 } // namespace internal
 
 using JSONNode = internal::JSONNode;
@@ -569,6 +628,25 @@ JSONNode Parse(std::istream *in) {
 JSONNode Parse(const std::string &text) {
   std::istringstream in(text);
   return Parse(&in);
+}
+
+std::string Serialize(const JSONNode &json) {
+  switch (json.GetType()) {
+  case JSONNode::Type::kBoolean:
+    return json.GetBool() ? "true" : "false";
+  case JSONNode::Type::kNull:
+    return "null";
+  case JSONNode::Type::kStr:
+    return internal::SerializeString(json.GetStr());
+  case JSONNode::Type::kNumber:
+    return std::to_string(json.GetNum());
+  case JSONNode::Type::kArr:
+    return internal::SerializeArray(json);
+  case JSONNode::Type::kObj:
+    return internal::SerializeObj(json);
+  default:
+    throw std::runtime_error("Unhandled JSONNode type.");
+  }
 }
 
 } // namespace minijson
