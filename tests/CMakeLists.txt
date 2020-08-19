@@ -42,6 +42,10 @@ add_executable(parser_tests parser_tests.cc)
 target_link_libraries(parser_tests gtest_main gmock_main)
 add_test(NAME parser_tests COMMAND parser_tests)
 
+add_executable(unicode_tests unicode_tests.cc)
+target_link_libraries(unicode_tests gtest_main gmock_main)
+add_test(NAME unicode_tests COMMAND unicode_tests)
+
 add_executable(jsonnode_tests jsonnode_tests.cc)
 target_link_libraries(jsonnode_tests gtest_main gmock_main)
 add_test(NAME jsonnode_tests COMMAND jsonnode_tests)

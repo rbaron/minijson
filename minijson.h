@@ -21,6 +21,9 @@
     throw std::runtime_error(std::string("Expected: ") + ch);                  \
   }
 
+// Given a pointer to an iterator, get the current value and advance.
+#define GET_AND_MOVE(it) *((*it)++)
+
 #define ASSERT_TYPE(type)                                                      \
   if (type_ != type) {                                                         \
     throw std::runtime_error("Wrong type");                                    \
@@ -429,7 +432,30 @@ std::string CodePointToUTF8(unsigned long int code) {
             static_cast<char>(0x80 | ((code >> 6) & 0x3f)),
             static_cast<char>(0x80 | (code & 0x3f))};
   }
-  throw std::runtime_error("Code point out of normal people range.");
+  throw std::runtime_error("Code point out of usual range.");
+}
+
+// https://linux.die.net/man/7/utf8
+unsigned long int
+UTF8ToCodePoint(BoundIterator<std::string::const_iterator> *it) {
+  // char first = *(*it++);
+  unsigned long int first = static_cast<unsigned char>(GET_AND_MOVE(it));
+  // Single byte.
+  if (!(first & 0x80)) {
+    return first & ~0x80;
+    // Two bytes.
+  } else if (first >> 5 == 0b110) {
+    return ((first & 0x1f) << 6) | (GET_AND_MOVE(it) & 0x3f);
+    // Three bytes.
+  } else if (first >> 4 == 0b1110) {
+    return ((first & 0b1111) << 12) | ((GET_AND_MOVE(it) & 0b111111) << 6) |
+           (GET_AND_MOVE(it) & 0b111111);
+    // Four bytes.
+  } else if (first >> 3 == 0b11110) {
+    return ((first & 0b111) << 18) | ((GET_AND_MOVE(it) & 0b111111) << 12) |
+           ((GET_AND_MOVE(it) & 0b111111) << 6) | (GET_AND_MOVE(it) & 0b111111);
+  }
+  throw std::runtime_error("Unable to convert utf-8 to codepoint.");
 }
 
 std::string ParseString(const std::string &input) {

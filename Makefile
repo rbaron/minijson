@@ -19,4 +19,5 @@ unittests: build
 	./build/tests/jsonnode_tests && \
 	./build/tests/parser_tests && \
 	./build/tests/iterator_tests && \
+	./build/tests/unicode_tests && \
 	./build/tests/bounditerator_tests
