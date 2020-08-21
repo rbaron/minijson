@@ -18,6 +18,11 @@ TEST(Serializer, UTF8String) {
   ASSERT_EQ(Serialize(node), R"j("Hello, 🌎")j");
 }
 
+TEST(Serializer, EscapedString) {
+  JSONNode node("\b\t\r\n\fwow that better be escaped\n");
+  ASSERT_EQ(Serialize(node), R"("\b\t\r\n\fwow that better be escaped\n")");
+}
+
 TEST(Serializer, Double) {
   JSONNode node(123.45);
   ASSERT_EQ(Serialize(node), "123.450000");
