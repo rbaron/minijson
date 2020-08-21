@@ -3,7 +3,10 @@
 # minijson
 Tiny header-only C++ JSON parsing library. Work in progress.
 
-# Example
+# Examples
+See files under `examples/`.
+
+# Parsing
 From `examples/json_parsing.cc`:
 ```cpp
 #include <iostream>
@@ -58,6 +61,40 @@ int main(int argc, char **argv) {
       << "\"inner_key\" contains: "
       << json["nested_obj_key"]["nested_arr_key"][2]["inner_obj_key"].GetStr()
       << std::endl;
+
+  return 0;
+}
+```
+
+# Serialization
+From `examples/serialization.cc`:
+```cpp
+#include <iostream>
+#include <string>
+
+#include "minijson.h"
+
+int main(int argc, char **argv) {
+  std::string text = R"(
+    {
+      "str_key": "hello, world"
+    }
+  )";
+
+  minijson::JSONNode json = minijson::Parse(text);
+
+  // Write to any std::ostream.
+  std::cout << json << std::endl;
+
+  // Including files or strings.
+  std::ostringstream out;
+  out << json << std::endl;
+  std::cout << out.str() << std::endl;
+
+  // For convenience, we can directly produce a string. Under the hood, it will
+  // create its own std::ostringstream and do as the example above.
+  std::string json_str = minijson::Serialize(json);
+  std::cout << json_str << std::endl;
 
   return 0;
 }
