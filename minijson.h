@@ -32,9 +32,11 @@
 namespace minijson {
 
 namespace internal {
+
 class JSONNode;
 }
 std::string Serialize(const internal::JSONNode &json);
+void Serialize(const internal::JSONNode &json, std::ostream *out);
 
 namespace internal {
 
@@ -568,72 +570,75 @@ JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it) {
   }
 }
 
-std::string SerializeString(const std::string &str) {
-  std::string out("\"");
+void SerializeString(const std::string &str, std::ostream *out) {
+  *out << '\"';
   for (char c : str) {
     switch (c) {
     case '\b':
-      out += "\\b";
+      *out << "\\b";
       break;
     case '\f':
-      out += "\\f";
+      *out << "\\f";
       break;
     case '\n':
-      out += "\\n";
+      *out << "\\n";
       break;
     case '\r':
-      out += "\\r";
+      *out << "\\r";
       break;
     case '\t':
-      out += "\\t";
+      *out << "\\t";
       break;
     case '\"':
-      out += "\"";
+      *out << "\"";
       break;
     case '\\':
-      out += "\\\\";
+      *out << "\\\\";
       break;
     default:
-      out += c;
+      *out << c;
     }
   }
-  out += '\"';
-  return out;
+  *out << '\"';
 }
 
-std::string SerializeArray(const JSONNode &json) {
-  auto it = json.IterableArr();
-  if (it.begin() == it.end()) {
-    return "[]";
+void SerializeArray(const JSONNode &json, std::ostream *out) {
+  auto iterable = json.IterableArr();
+  if (iterable.begin() == iterable.end()) {
+    *out << "[]";
+    return;
   }
-  std::string out("[");
-  std::for_each(it.begin(), it.end(), [&out](const JSONNode &node) {
-    out += Serialize(node);
-    out += ',';
+  *out << "[";
+  auto it = iterable.begin();
+  Serialize(*(it++), out);
+  std::for_each(it, iterable.end(), [&out](const JSONNode &node) {
+    *out << ',';
+    Serialize(node, out);
   });
-  // Remove trailing ','
-  out.pop_back();
-  out += "]";
-  return out;
+  *out << "]";
 }
 
-std::string SerializeObj(const JSONNode &json) {
-  auto it = json.IterableObj();
-  if (it.begin() == it.end()) {
-    return "{}";
+void SerializeKV(const JSONNode::Obj::value_type &pair, std::ostream *out) {
+  SerializeString(pair.first, out);
+  *out << ':';
+  Serialize(pair.second, out);
+}
+
+void SerializeObj(const JSONNode &json, std::ostream *out) {
+  auto iterable = json.IterableObj();
+  if (iterable.begin() == iterable.end()) {
+    *out << "{}";
+    return;
   }
-  std::string out("{");
-  std::for_each(it.begin(), it.end(),
+  *out << "{";
+  auto it = iterable.begin();
+  SerializeKV(*(it++), out);
+  std::for_each(it, iterable.end(),
                 [&out](const JSONNode::Obj::value_type &kv) {
-                  out += SerializeString(kv.first);
-                  out += ':';
-                  out += Serialize(kv.second);
-                  out += ',';
+                  *out << ',';
+                  SerializeKV(kv, out);
                 });
-  // Remove trailing ','
-  out.pop_back();
-  out += "}";
-  return out;
+  *out << "}";
 }
 
 } // namespace internal
@@ -656,25 +661,41 @@ JSONNode Parse(const std::string &text) {
   return Parse(&in);
 }
 
-std::string Serialize(const JSONNode &json) {
+void Serialize(const JSONNode &json, std::ostream *out) {
   switch (json.GetType()) {
   case JSONNode::Type::kBoolean:
-    return json.GetBool() ? "true" : "false";
+    json.GetBool() ? *out << "true" : *out << "false";
+    return;
   case JSONNode::Type::kNull:
-    return "null";
+    *out << "null";
+    return;
   case JSONNode::Type::kStr:
-    return internal::SerializeString(json.GetStr());
+    internal::SerializeString(json.GetStr(), out);
+    return;
   case JSONNode::Type::kNumber:
-    return std::to_string(json.GetNum());
+    *out << std::to_string(json.GetNum());
+    return;
   case JSONNode::Type::kArr:
-    return internal::SerializeArray(json);
+    internal::SerializeArray(json, out);
+    return;
   case JSONNode::Type::kObj:
-    return internal::SerializeObj(json);
+    internal::SerializeObj(json, out);
+    return;
   default:
     throw std::runtime_error("Unhandled JSONNode type.");
   }
 }
 
+std::string Serialize(const JSONNode &json) {
+  std::ostringstream out;
+  Serialize(json, &out);
+  return out.str();
+}
 } // namespace minijson
+
+std::ostream &operator<<(std::ostream &out, const minijson::JSONNode &json) {
+  minijson::Serialize(json, &out);
+  return out;
+}
 
 #endif // _MINIJSON_H_
