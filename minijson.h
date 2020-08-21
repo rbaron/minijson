@@ -21,12 +21,23 @@
     throw std::runtime_error(std::string("Expected: ") + ch);                  \
   }
 
+// Given a pointer to an iterator, get the current value and advance.
+#define GET_AND_MOVE(it) *((*it)++)
+
 #define ASSERT_TYPE(type)                                                      \
   if (type_ != type) {                                                         \
     throw std::runtime_error("Wrong type");                                    \
   }
 
 namespace minijson {
+
+namespace internal {
+
+class JSONNode;
+}
+std::string Serialize(const internal::JSONNode &json);
+void Serialize(const internal::JSONNode &json, std::ostream *out);
+
 namespace internal {
 
 enum class TokenType {
@@ -173,6 +184,7 @@ std::vector<Token> Tokenize(std::istream *input) {
   return tokens;
 }
 
+// TODO: handle integers. See https://tools.ietf.org/html/rfc7159#section-6.
 class JSONNode {
 public:
   using Obj = std::unordered_map<std::string, JSONNode>;
@@ -266,6 +278,18 @@ public:
     }
   };
 
+  enum class Type {
+    kNull,
+    kBoolean,
+    kNumber,
+    kStr,
+    kArr,
+    kObj,
+  };
+
+  Type GetType() const { return type_; }
+
+  // TODO: allow null -> obj type change.
   JSONNode &operator[](const std::string &key) {
     ASSERT_TYPE(Type::kObj);
     return (*obj_)[key];
@@ -274,6 +298,12 @@ public:
   JSONNode &operator[](const size_t idx) {
     ASSERT_TYPE(Type::kArr);
     return (*arr_)[idx];
+  }
+
+  // TODO: allow null -> arr type change.
+  void push_back(JSONNode rhs) {
+    ASSERT_TYPE(Type::kArr);
+    arr_->push_back(rhs);
   }
 
   bool IsNull() const { return type_ == Type::kNull; }
@@ -306,14 +336,6 @@ public:
 private:
   // We implement the "tagged union" idiom from
   // "The C++ Programming Language 4th edition".
-  enum class Type {
-    kNull,
-    kBoolean,
-    kNumber,
-    kStr,
-    kArr,
-    kObj,
-  };
   Type type_;
   union {
     bool bool_;
@@ -429,7 +451,30 @@ std::string CodePointToUTF8(unsigned long int code) {
             static_cast<char>(0x80 | ((code >> 6) & 0x3f)),
             static_cast<char>(0x80 | (code & 0x3f))};
   }
-  throw std::runtime_error("Code point out of normal people range.");
+  throw std::runtime_error("Code point out of usual range.");
+}
+
+// https://linux.die.net/man/7/utf8
+unsigned long int
+UTF8ToCodePoint(BoundIterator<std::string::const_iterator> *it) {
+  // char first = *(*it++);
+  unsigned long int first = static_cast<unsigned char>(GET_AND_MOVE(it));
+  // Single byte.
+  if (!(first & 0x80)) {
+    return first & ~0x80;
+    // Two bytes.
+  } else if (first >> 5 == 0b110) {
+    return ((first & 0x1f) << 6) | (GET_AND_MOVE(it) & 0x3f);
+    // Three bytes.
+  } else if (first >> 4 == 0b1110) {
+    return ((first & 0b1111) << 12) | ((GET_AND_MOVE(it) & 0b111111) << 6) |
+           (GET_AND_MOVE(it) & 0b111111);
+    // Four bytes.
+  } else if (first >> 3 == 0b11110) {
+    return ((first & 0b111) << 18) | ((GET_AND_MOVE(it) & 0b111111) << 12) |
+           ((GET_AND_MOVE(it) & 0b111111) << 6) | (GET_AND_MOVE(it) & 0b111111);
+  }
+  throw std::runtime_error("Unable to convert utf-8 to codepoint.");
 }
 
 std::string ParseString(const std::string &input) {
@@ -525,6 +570,77 @@ JSONNode ParseJSONNode(BoundIterator<std::vector<Token>::const_iterator> *it) {
   }
 }
 
+void SerializeString(const std::string &str, std::ostream *out) {
+  *out << '\"';
+  for (char c : str) {
+    switch (c) {
+    case '\b':
+      *out << "\\b";
+      break;
+    case '\f':
+      *out << "\\f";
+      break;
+    case '\n':
+      *out << "\\n";
+      break;
+    case '\r':
+      *out << "\\r";
+      break;
+    case '\t':
+      *out << "\\t";
+      break;
+    case '\"':
+      *out << "\"";
+      break;
+    case '\\':
+      *out << "\\\\";
+      break;
+    default:
+      *out << c;
+    }
+  }
+  *out << '\"';
+}
+
+void SerializeArray(const JSONNode &json, std::ostream *out) {
+  auto iterable = json.IterableArr();
+  if (iterable.begin() == iterable.end()) {
+    *out << "[]";
+    return;
+  }
+  *out << "[";
+  auto it = iterable.begin();
+  Serialize(*(it++), out);
+  std::for_each(it, iterable.end(), [&out](const JSONNode &node) {
+    *out << ',';
+    Serialize(node, out);
+  });
+  *out << "]";
+}
+
+void SerializeKV(const JSONNode::Obj::value_type &pair, std::ostream *out) {
+  SerializeString(pair.first, out);
+  *out << ':';
+  Serialize(pair.second, out);
+}
+
+void SerializeObj(const JSONNode &json, std::ostream *out) {
+  auto iterable = json.IterableObj();
+  if (iterable.begin() == iterable.end()) {
+    *out << "{}";
+    return;
+  }
+  *out << "{";
+  auto it = iterable.begin();
+  SerializeKV(*(it++), out);
+  std::for_each(it, iterable.end(),
+                [&out](const JSONNode::Obj::value_type &kv) {
+                  *out << ',';
+                  SerializeKV(kv, out);
+                });
+  *out << "}";
+}
+
 } // namespace internal
 
 using JSONNode = internal::JSONNode;
@@ -545,6 +661,41 @@ JSONNode Parse(const std::string &text) {
   return Parse(&in);
 }
 
+void Serialize(const JSONNode &json, std::ostream *out) {
+  switch (json.GetType()) {
+  case JSONNode::Type::kBoolean:
+    json.GetBool() ? *out << "true" : *out << "false";
+    return;
+  case JSONNode::Type::kNull:
+    *out << "null";
+    return;
+  case JSONNode::Type::kStr:
+    internal::SerializeString(json.GetStr(), out);
+    return;
+  case JSONNode::Type::kNumber:
+    *out << std::to_string(json.GetNum());
+    return;
+  case JSONNode::Type::kArr:
+    internal::SerializeArray(json, out);
+    return;
+  case JSONNode::Type::kObj:
+    internal::SerializeObj(json, out);
+    return;
+  default:
+    throw std::runtime_error("Unhandled JSONNode type.");
+  }
+}
+
+std::string Serialize(const JSONNode &json) {
+  std::ostringstream out;
+  Serialize(json, &out);
+  return out.str();
+}
 } // namespace minijson
+
+std::ostream &operator<<(std::ostream &out, const minijson::JSONNode &json) {
+  minijson::Serialize(json, &out);
+  return out;
+}
 
 #endif // _MINIJSON_H_
